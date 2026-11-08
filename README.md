@@ -1,5 +1,11 @@
 # opencode-file-editor
 
+[![npm version](https://img.shields.io/npm/v/opencode-file-editor?logo=npm)](https://www.npmjs.com/package/opencode-file-editor)
+[![npm downloads](https://img.shields.io/npm/dm/opencode-file-editor)](https://www.npmjs.com/package/opencode-file-editor)
+[![license](https://img.shields.io/npm/l/opencode-file-editor)](LICENSE)
+[![CI](https://github.com/cheejiayuan512/opencode-file-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/cheejiayuan512/opencode-file-editor/actions/workflows/ci.yml)
+[![GitHub stars](https://img.shields.io/github/stars/cheejiayuan512/opencode-file-editor?style=flat)](https://github.com/cheejiayuan512/opencode-file-editor/stargazers)
+
 A file editor panel for **OpenCode Desktop**. Files open in their own tabs, edits
 autosave, and writes never clobber what the agent just changed.
 
