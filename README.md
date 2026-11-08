@@ -140,11 +140,29 @@ ok  the app's plugin API major matches the dependency (2.2.5)
 ## Publishing
 
 `prepublishOnly` runs typecheck, build and the full suite, so a regression blocks
-the upload. Before publishing:
+the upload.
+
+The npm account uses a **passkey**, so `npm publish --otp=…` cannot work: a
+passkey signs locally and never produces a code. Two ways to publish:
+
+1. **Manual (first release).** Run it in a real terminal — npm prints a URL and
+   the browser passkey prompt completes the write:
+
+   ```sh
+   npm publish
+   ```
+
+2. **Trusted publishing (every release after that).** Configure the package on
+   npmjs.com → Settings → Trusted Publishing → GitHub Actions
+   (`cheejiayuan512` / `opencode-file-editor` / `publish.yml`), then push a `v*`
+   tag. `.github/workflows/publish.yml` publishes over OIDC with provenance and
+   needs no OTP or token.
+
+Before publishing:
 
 1. `npm run verify:live` against the OpenCode version you support.
 2. Bump `version`, add a `CHANGELOG.md` entry, update the compatibility table.
-3. `npm login` (2FA), then `npm publish`.
+3. Tag `v<version>` so the GitHub release and the npm version agree.
 
 ## License
 

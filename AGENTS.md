@@ -67,7 +67,13 @@ a broken build once.
 1. `npm run verify:live` against the OpenCode Desktop version you claim to
    support. `tested with` belongs in the README compatibility table.
 2. Bump `version` in `package.json` and add a `CHANGELOG.md` entry.
-3. `npm login` (2FA), then `npm publish`. `prepublishOnly` gates the upload on
-   typecheck, build and the full suite.
-4. Do not keep a second copy in `~/.config/opencode/plugins/file-editor` after
+3. **First release:** `npm publish` from a real terminal. The npm account uses a
+   passkey, so there is no OTP to pass with `--otp`; npm prints a URL and the
+   browser completes the write. `prepublishOnly` gates the upload on typecheck,
+   build and the full suite.
+4. **Every release after that:** configure trusted publishing on npmjs.com
+   (Settings → Trusted Publishing → GitHub Actions → `publish.yml`) and push a
+   `v*` tag. `.github/workflows/publish.yml` publishes over OIDC with provenance,
+   no OTP and no long-lived token.
+5. Do not keep a second copy in `~/.config/opencode/plugins/file-editor` after
    installing the published package: both claim the id.

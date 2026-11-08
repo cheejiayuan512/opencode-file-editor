@@ -1,0 +1,38 @@
+name: Publish
+
+# Trusted publishing: no token, no OTP. npm trusts this workflow through OIDC
+# and attaches a provenance attestation automatically.
+#
+# One-time setup on npmjs.com (after the first manual release):
+#   Package → Settings → Trusted Publishing → GitHub Actions
+#   owner: cheejiayuan512, repo: opencode-file-editor, workflow: publish.yml
+#   allow "npm publish"
+#
+# Until that exists this workflow fails with ENEEDAUTH; it only runs on tags.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm publish --provenance --access public
