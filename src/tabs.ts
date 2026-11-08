@@ -24,3 +24,17 @@ export function pathFromId(id: string, base: string) {
     ? canonicalPath(id.slice("file:".length), base)
     : "";
 }
+
+// Which stored tab a launcher click should show: the one its pane already
+// stands on, else the last one added. Returns undefined when nothing is stored,
+// where the caller opens the transient launcher tab instead.
+export function pickShown(
+  stored: readonly string[],
+  state: (id: string) => string,
+): string | undefined {
+  for (const id of stored) {
+    const value = state(id);
+    if (value === "visible" || value === "active") return id;
+  }
+  return stored.length > 0 ? stored[stored.length - 1] : undefined;
+}

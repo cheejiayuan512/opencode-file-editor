@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.6
+
+- The **File editor** entry in the `+` menu now shows the panel instead of
+  collapsing the side pane. The menu renders inside the pane, so the old
+  `side.toggle` closed the region the click came from.
+- `Ctrl/Cmd+Shift+E` keeps toggling: it closes the panel only when the panel is
+  on screen, and shows it when the region is showing Review, Browser or Terminal.
+
 ## 0.1.5
 
 - Preview images and the demo GIF are cropped to the panel, with no empty canvas

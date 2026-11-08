@@ -36,7 +36,7 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 83 assertions with no app running:
+`npm test` builds first, then runs 88 assertions with no app running:
 
 | File | Guards |
 |---|---|

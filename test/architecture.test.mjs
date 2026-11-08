@@ -79,6 +79,20 @@ test("the wrap measurement box mirrors the textarea metrics", () => {
   assert.match(source, /"overflow-wrap": "break-word"/);
 });
 
+test("the + menu shows the panel instead of toggling the region closed", () => {
+  // The + menu renders inside the side region, so `side.toggle` from its item
+  // closed the pane the click came from: one click, panel gone. Only the
+  // keybind is allowed to close the panel it already shows.
+  const start = source.indexOf("ctx.add(MenuItem");
+  const end = source.indexOf("ctx.add(Command");
+  assert.ok(start > -1 && end > start, "expected MenuItem then Command");
+  const menuItem = source.slice(start, end);
+  assert.ok(
+    !menuItem.includes("side.toggle"),
+    "the + menu item must select a tab, not toggle the side region",
+  );
+});
+
 test("the contract id carries a version suffix", () => {
   assert.match(source, /id: "file-editor\.fs\.v\d+"/);
 });

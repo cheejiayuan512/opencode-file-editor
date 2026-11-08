@@ -18,6 +18,7 @@ import {
   Panel,
   Plugin,
   type PanelTab,
+  type SessionRef,
   type Ui,
   type UiMenuEntry,
 } from "@opencode/plugin/gui";
@@ -39,7 +40,15 @@ import {
   isTextPath,
   linkBase,
 } from "./links";
-import { LAUNCHER, BROWSER, keyFor, pathFromId, tabId, tabKey } from "./tabs";
+import {
+  LAUNCHER,
+  BROWSER,
+  keyFor,
+  pathFromId,
+  pickShown,
+  tabId,
+  tabKey,
+} from "./tabs";
 import { explain, isExternalChange } from "./status";
 import {
   crumbTrail,
@@ -1383,7 +1392,7 @@ export default Plugin.define({
     },
   },
   setup(ctx) {
-    console.log("[file-editor] gui v27");
+    console.log("[file-editor] gui v28");
     const fs = ctx.main(Fs);
 
     ctx.add(Panel, {
@@ -1512,6 +1521,28 @@ export default Plugin.define({
       },
     });
 
+    // `side.toggle` flips the region, and the + menu lives inside the region, so
+    // toggling from there closed the pane instead of showing the panel. Both
+    // entries now select a tab; only the keybind still closes what it shows.
+    const stateOf = (session: SessionRef, id: string) =>
+      ctx.layout.state(keyFor(id), session);
+
+    const editorVisible = (session: SessionRef) =>
+      ctx.layout.stored(session).some((id) => stateOf(session, id) === "visible");
+
+    const showEditor = (session: SessionRef) => {
+      const stored = ctx.layout.stored(session);
+      if (stored.length === 0) {
+        // Nothing stored yet: the launcher tab is transient, so it is never
+        // stored itself and must be opened explicitly.
+        ctx.layout.open(keyFor(LAUNCHER), session, { tab: "select" });
+        return;
+      }
+      const shown = pickShown(stored, (id) => stateOf(session, id));
+      if (!shown) return;
+      ctx.layout.open(keyFor(shown), session, { tab: "select" });
+    };
+
     ctx.add(MenuItem, (): MenuItem => {
       const session = ctx.sessions.current();
 
@@ -1527,7 +1558,10 @@ export default Plugin.define({
             .some((id) => ctx.layout.state(keyFor(id), session) !== "closed"),
         run: () => {
           const current = ctx.sessions.current();
-          if (current) ctx.layout.side.toggle(current);
+          // The menu asks for the panel; closing it here is what the click
+          // appeared to do. Leave it on screen once it is there.
+          if (!current || editorVisible(current)) return;
+          showEditor(current);
         },
       };
     });
@@ -1540,11 +1574,13 @@ export default Plugin.define({
       run: () => {
         const session = ctx.sessions.current();
         if (!session) return;
-        if (ctx.layout.stored(session).length === 0) {
-          ctx.layout.open(keyFor(LAUNCHER), session, { tab: "select" });
+        // A keybind is a toggle, so it may close the panel. It must not close a
+        // region that is showing another panel, which is what it did before.
+        if (editorVisible(session)) {
+          ctx.layout.side.toggle(session);
           return;
         }
-        ctx.layout.side.toggle(session);
+        showEditor(session);
       },
     }));
 
