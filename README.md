@@ -45,6 +45,11 @@ Or add it to your global config so every window has it:
 }
 ```
 
+**`npm install` alone does not install the plugin.** It only downloads the files
+into the current project's `node_modules`, and OpenCode never looks there. Use
+`opencode plugin add`, or list the package in `plugins` as above — OpenCode then
+installs it under its own prefix and loads it.
+
 Restart OpenCode Desktop, then open the panel with `mod+shift+e`, `/editor`, or
 **+ → File editor** in the session panel.
 
