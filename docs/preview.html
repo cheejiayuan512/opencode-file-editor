@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>opencode-file-editor preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #1b1b1b;
+        --panel: #1f1f1f;
+        --line: rgba(255, 255, 255, 0.1);
+        --text: #e8e8e8;
+        --dim: rgba(232, 232, 232, 0.55);
+        --faint: rgba(232, 232, 232, 0.28);
+        --amber: #d9a441;
+        --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #111;
+        font: 13px/1.55 "Segoe UI", system-ui, sans-serif;
+        color: var(--text);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .shot {
+        width: 1120px;
+        height: 640px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .tabs {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .tab {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 10px;
+        border-radius: 6px 6px 0 0;
+        color: var(--dim);
+        font-size: 12.5px;
+      }
+      .tab.active {
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text);
+      }
+      .tab .x { color: var(--faint); }
+      .plus { color: var(--faint); padding: 0 6px; }
+      .head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+      }
+      .crumbs {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .crumbs .sep { color: var(--faint); }
+      .crumbs .up { color: var(--dim); }
+      .crumbs .file { color: var(--text); }
+      .seg { display: flex; gap: 3px; }
+      .seg button {
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--dim);
+        background: transparent;
+        border: 0;
+        padding: 3px 9px;
+        border-radius: 5px;
+      }
+      .seg button.on {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.09);
+        border: 1px solid var(--line);
+      }
+      .dots { color: var(--dim); letter-spacing: 2px; padding: 0 4px; }
+      .body { flex: 1; min-height: 0; display: flex; }
+      table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+      th, td { padding: 3px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); white-space: nowrap; text-align: left; }
+      th { font-size: 11.5px; border-bottom: 1px solid var(--line); color: var(--text); }
+      td.num, th.num { width: 1%; text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+      tr:nth-child(even) td { background: rgba(255, 255, 255, 0.025); }
+      .status {
+        padding: 4px 10px;
+        border-top: 1px solid var(--line);
+        font-size: 11.5px;
+        color: var(--dim);
+        display: flex;
+        gap: 6px;
+      }
+      .dot { color: var(--amber); }
+      .rows { padding: 4px; }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 12.5px;
+      }
+      .row:hover { background: rgba(255, 255, 255, 0.05); }
+      .row .icon { width: 16px; text-align: center; }
+      .row.dir .icon { color: var(--amber); }
+      .row.dir .name { font-weight: 600; }
+      .row.file .icon { opacity: 0.65; }
+      .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .row .meta { margin-left: auto; color: var(--faint); font-size: 11.5px; }
+      .side { width: 250px; border-left: 1px solid var(--line); padding: 10px; }
+      .side h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+      .recent { display: flex; flex-direction: column; gap: 2px; }
+      .recent div { display: flex; gap: 10px; padding: 4px 6px; border-radius: 6px; font-size: 12px; }
+      .recent div:hover { background: rgba(255, 255, 255, 0.05); }
+      .recent .folder { margin-left: auto; color: var(--faint); font-size: 11px; }
+      .editor { display: flex; flex: 1; min-height: 0; }
+      .gutter {
+        padding: 10px 6px 10px 10px;
+        text-align: right;
+        white-space: pre;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.65;
+        color: rgba(232, 232, 232, 0.35);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .code {
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.65;
+        white-space: pre;
+        color: #d6d6d6;
+        flex: 1;
+      }
+      .kw { color: #c792ea; }
+      .str { color: #a5d6a7; }
+      .com { color: #6f7a86; }
+      .fn { color: #82aaff; }
+    </style>
+  </head>
+  <body>
+    <!-- 1: CSV in table view + recent files -->
+    <div class="shot" id="table" role="img" aria-label="Table view">
+      <div class="tabs">
+        <div class="tab">Open file</div>
+        <div class="tab active">workouts.csv <span class="x">×</span></div>
+        <div class="tab">README.md <span class="x">×</span></div>
+        <div class="plus">+</div>
+      </div>
+      <div class="head">
+        <div class="crumbs">
+          <span class="up">C:</span><span class="sep">›</span>
+          <span class="up">Users</span><span class="sep">›</span>
+          <span class="up">JIAYUAN</span><span class="sep">›</span>
+          <span class="up">Rep</span><span class="sep">›</span>
+          <span class="file">workouts.csv</span>
+        </div>
+        <div class="seg"><button class="on">Table</button><button>Source</button></div>
+        <div class="dots">⋯</div>
+      </div>
+      <div class="body">
+        <table>
+          <thead>
+            <tr>
+              <th class="num">#</th><th>Date</th><th>Workout</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">1</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>1</td><td>80.0</td><td>5.0</td></tr>
+            <tr><td class="num">2</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
+            <tr><td class="num">3</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>2</td><td>80.0</td><td>5.0</td></tr>
+            <tr><td class="num">4</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>1</td><td>60.0</td><td>5.0</td></tr>
+            <tr><td class="num">5</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
+            <tr><td class="num">6</td><td>2026-11-03 18:28</td><td>Strong 5x5 — A</td><td>Barbell Row</td><td>1</td><td>50.0</td><td>5.0</td></tr>
+            <tr><td class="num">7</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>1</td><td>100.0</td><td>3.0</td></tr>
+            <tr><td class="num">8</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>2</td><td>100.0</td><td>3.0</td></tr>
+            <tr><td class="num">9</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>1</td><td>40.0</td><td>5.0</td></tr>
+            <tr><td class="num">10</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>2</td><td>40.0</td><td>5.0</td></tr>
+          </tbody>
+        </table>
+        <div class="side">
+          <h4>Recent</h4>
+          <div class="recent">
+            <div>workouts.csv <span class="folder">Rep</span></div>
+            <div>README.md <span class="folder">Rep</span></div>
+            <div>App.tsx <span class="folder">Rep</span></div>
+            <div>button.tsx <span class="folder">src/components</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="status"><span class="dot">●</span> Autosaved 18:41:02</div>
+    </div>
+
+    <!-- 2: folder browser -->
+    <div class="shot" id="browse" role="img" aria-label="Folder browser">
+      <div class="tabs">
+        <div class="tab">Open file</div>
+        <div class="tab active">Rep <span class="x">×</span></div>
+        <div class="tab">App.tsx <span class="x">×</span></div>
+        <div class="plus">+</div>
+      </div>
+      <div class="head">
+        <div class="crumbs">
+          <span class="up">↑</span>
+          <span class="up">C:</span><span class="sep">›</span>
+          <span class="up">Users</span><span class="sep">›</span>
+          <span class="up">JIAYUAN</span><span class="sep">›</span>
+          <span class="up">CursorProjects</span><span class="sep">›</span>
+          <span class="file">Rep</span>
+        </div>
+        <div class="dots">⋯</div>
+      </div>
+      <div class="body">
+        <div class="rows" style="flex: 1">
+          <div class="row dir"><span class="icon">📁</span><span class="name">.github</span></div>
+          <div class="row dir"><span class="icon">📁</span><span class="name">docs</span></div>
+          <div class="row dir"><span class="icon">📁</span><span class="name">e2e</span></div>
+          <div class="row dir"><span class="icon">📁</span><span class="name">src</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">AGENTS.md</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">App.tsx</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">README.md</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">app.json</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">package.json</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">tsconfig.json</span></div>
+          <div class="row file"><span class="icon">📄</span><span class="name">workouts.csv</span></div>
+        </div>
+      </div>
+      <div class="status">Showing 11 of 11 entries</div>
+    </div>
+
+    <!-- 3: markdown source with line numbers -->
+    <div class="shot" id="editor" role="img" aria-label="Source editor">
+      <div class="tabs">
+        <div class="tab">Open file</div>
+        <div class="tab active">App.tsx <span class="x">×</span></div>
+        <div class="plus">+</div>
+      </div>
+      <div class="head">
+        <div class="crumbs">
+          <span class="up">C:</span><span class="sep">›</span>
+          <span class="up">Users</span><span class="sep">›</span>
+          <span class="up">JIAYUAN</span><span class="sep">›</span>
+          <span class="up">Rep</span><span class="sep">›</span>
+          <span class="file">App.tsx</span>
+        </div>
+        <div class="seg"><button class="on">Source</button></div>
+        <div class="dots">⋯</div>
+      </div>
+      <div class="body">
+        <div class="editor">
+          <div class="gutter">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23</div>
+          <div class="code"><span class="com">/**
+ * The root component.
+ */</span>
+<span class="kw">import</span> { StatusBar } <span class="kw">from</span> <span class="str">'expo-status-bar'</span>;
+<span class="kw">import</span> React <span class="kw">from</span> <span class="str">'react'</span>;
+<span class="kw">import</span> { Provider } <span class="kw">from</span> <span class="str">'react-redux'</span>;
+
+<span class="kw">import</span> { store } <span class="kw">from</span> <span class="str">'./src/state/store'</span>;
+<span class="kw">import</span> { RootNavigator } <span class="kw">from</span> <span class="str">'./src/navigation/root-navigator'</span>;
+
+<span class="kw">export default function</span> <span class="fn">App</span>() {
+  <span class="kw">return</span> (
+    &lt;<span class="fn">Provider</span> store={store}&gt;
+      &lt;<span class="fn">RootNavigator</span> /&gt;
+      &lt;<span class="fn">StatusBar</span> style=<span class="str">"light"</span> /&gt;
+    &lt;/<span class="fn">Provider</span>&gt;
+  );
+}</div>
+        </div>
+      </div>
+      <div class="status"><span class="dot">●</span> Unsaved changes…</div>
+    </div>
+  </body>
+</html>

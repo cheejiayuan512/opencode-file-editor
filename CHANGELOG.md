@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- README: preview images for the table view, folder browser and source editor.
+- The previews are generated from `docs/preview.html` with sample data.
+
 ## 0.1.1
 
 - README: npm version, downloads, license, CI and stars badges.

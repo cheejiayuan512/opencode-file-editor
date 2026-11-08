@@ -12,6 +12,16 @@ autosave, and writes never clobber what the agent just changed.
 Built on the `@opencode/plugin/gui` SDK, so it uses the app's own buttons, fields,
 tooltips, themes and Markdown renderer instead of its own widgets.
 
+## Preview
+
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/table-view.png" alt="A CSV opened in the table view, with recent files in the side panel" width="880">
+
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/folder-browser.png" alt="Folder browser with folders in amber and files in neutral" width="880">
+
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/editor.png" alt="Source editor with line numbers and unsaved-changes marker" width="880">
+
+<sub>Previews use sample data. The panel follows your OpenCode theme.</sub>
+
 ## Features
 
 - **Tabs** — one per file, restored per session. `●` marks unsaved changes.
