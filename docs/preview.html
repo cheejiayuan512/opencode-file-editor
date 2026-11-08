@@ -154,6 +154,30 @@
       .str { color: #a5d6a7; }
       .com { color: #6f7a86; }
       .fn { color: #82aaff; }
+      .md { flex: 1; padding: 12px 16px; font-size: 12.5px; line-height: 1.7; overflow: hidden; }
+      .md h1 { font-size: 18px; margin: 0 0 8px; }
+      .md h2 { font-size: 13.5px; margin: 14px 0 4px; }
+      .md p { margin: 6px 0; }
+      .md ol { margin: 4px 0; padding-left: 20px; }
+      .md li { margin: 2px 0; }
+      .md pre {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        margin: 6px 0;
+      }
+      .md table { font-size: 12px; margin: 6px 0; }
+      .md th, .md td { border: 1px solid var(--line); padding: 3px 10px; }
+      .md blockquote {
+        margin: 8px 0;
+        padding: 2px 0 2px 10px;
+        border-left: 2px solid rgba(255, 255, 255, 0.25);
+        color: var(--dim);
+      }
+      .md a { color: #82aaff; text-decoration: none; }
     </style>
   </head>
   <body>
@@ -310,6 +334,53 @@
         </div>
       </div>
       <div class="status"><span class="dot">●</span> Unsaved changes…</div>
+    </div>
+    <!-- 4: markdown preview -->
+    <div class="shot" id="markdown" role="img" aria-label="Markdown preview">
+      <div class="tabs">
+        <div class="tab">Open file</div>
+        <div class="tab active">notes.md <span class="x">×</span></div>
+        <div class="tab">workouts.csv <span class="x">×</span></div>
+        <div class="plus">+</div>
+      </div>
+      <div class="head">
+        <div class="crumbs">
+          <span class="up">C:</span><span class="sep">›</span>
+          <span class="up">Users</span><span class="sep">›</span>
+          <span class="up">you</span><span class="sep">›</span>
+          <span class="up">Projects</span><span class="sep">›</span>
+          <span class="up">app</span><span class="sep">›</span>
+          <span class="file">notes.md</span>
+        </div>
+        <div class="seg"><button class="on">Preview</button><button>Source</button></div>
+        <div class="dots">⋯</div>
+      </div>
+      <div class="body">
+        <div class="md">
+          <h1>Release checklist</h1>
+          <p>Sample file for trying the editor's Markdown preview.</p>
+          <h2>Steps</h2>
+          <ol>
+            <li>Bump <code>version</code> in <code>package.json</code>.</li>
+            <li>Add a <code>CHANGELOG.md</code> entry.</li>
+            <li>Push a <code>v&lt;version&gt;</code> tag.</li>
+          </ol>
+          <h2>Commands</h2>
+<pre>git tag -a v0.1.4 -m "v0.1.4"
+git push origin v0.1.4</pre>
+          <h2>Notes</h2>
+          <table>
+            <thead><tr><th>Step</th><th>Owner</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Tests</td><td>CI</td><td>passing</td></tr>
+              <tr><td>Provenance</td><td>GitHub Actions</td><td>attached</td></tr>
+            </tbody>
+          </table>
+          <p>Links work too: <a href="#">the repository</a>.</p>
+          <blockquote>A blockquote, because Markdown should look like Markdown.</blockquote>
+        </div>
+      </div>
+      <div class="status"><span class="dot">●</span> Autosaved 18:42:10</div>
     </div>
   </body>
 </html>

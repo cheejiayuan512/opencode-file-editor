@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.4
+
+- README: animated demo covering the table view, source editor, Markdown preview
+  and folder browser.
+- Sample files to try the panel with (`docs/samples`): a CSV, a Markdown file and
+  a TypeScript module.
+- README: testing matrix and live-check output moved to `AGENTS.md`, so the
+  package page stays focused on using the plugin.
+
 ## 0.1.3
 
 - README rewritten for public readers: explicit requirement line, `Ctrl/Cmd`

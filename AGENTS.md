@@ -29,6 +29,30 @@ npm run verify:live  # asks the running desktop app what it actually loaded
 npm publish          # prepublishOnly runs typecheck, build and tests
 ```
 
+## Testing
+
+`npm test` builds first, then runs 83 assertions with no app running:
+
+| File | Guards |
+|---|---|
+| `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting |
+| `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
+| `architecture` | renderer modules import no Node builtins, every `layout.open` uses `tab: "select"`, the panel uses `wide`, refs are attached |
+| `bundle` | file-name layout (no `exports`), version marker matches the source, parses as CommonJS |
+| `publish` | a real `npm pack` ships only the needed files and stays small |
+
+`npm run verify:live` asks the running app what it actually loaded:
+
+```
+ok  the plugin is registered
+ok  it is active
+ok  the server advertises its GUI part
+ok  the GUI bundle is served
+ok  the served bundle is the current build (vN)
+ok  the bundle has no Node stub in its window path
+ok  the app's plugin API major matches the dependency (2.2.5)
+```
+
 ## Rules the tests enforce
 
 Read these before changing anything; each one exists because it already shipped

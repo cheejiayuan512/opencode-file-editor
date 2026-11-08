@@ -16,13 +16,13 @@ Requires **OpenCode Desktop 2.2 or newer**.
 
 ## Preview
 
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/demo.gif" alt="Switching between the CSV table view, the source editor, the Markdown preview and the folder browser" width="880">
+
 <img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/table-view.png" alt="A CSV opened in the table view, with recent files in the side panel" width="880">
 
-<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/folder-browser.png" alt="Folder browser with folders in amber and files in neutral" width="880">
-
-<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/editor.png" alt="Source editor with line numbers and unsaved-changes marker" width="880">
-
-<sub>Previews use sample data. The panel follows your OpenCode theme.</sub>
+<sub>Previews use sample data and follow your OpenCode theme. The files in the
+demo live in <a href="https://github.com/cheejiayuan512/opencode-file-editor/tree/main/docs/samples">docs/samples</a> —
+open them to try the panel.</sub>
 
 ## Features
 
@@ -135,32 +135,9 @@ To try a local checkout instead of the published package:
 { "plugins": ["/absolute/path/to/opencode-file-editor"] }
 ```
 
-See [`AGENTS.md`](https://github.com/cheejiayuan512/opencode-file-editor/blob/main/AGENTS.md)
-for the rules the tests enforce and why each one exists.
-
-## Testing
-
-`npm test` — 83 assertions, no app needed:
-
-| File | Guards |
-|---|---|
-| `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting |
-| `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
-| `architecture` | renderer modules import no Node builtins, every `layout.open` uses `tab: "select"`, the panel uses `wide`, refs are attached |
-| `bundle` | file-name layout (no `exports`), version marker matches the source, parses as CommonJS |
-| `publish` | a real `npm pack` ships only the needed files and stays small |
-
-`npm run verify:live` asks the running app:
-
-```
-ok  the plugin is registered
-ok  it is active
-ok  the server advertises its GUI part
-ok  the GUI bundle is served
-ok  the served bundle is the current build (vN)
-ok  the bundle has no Node stub in its window path
-ok  the app's plugin API major matches the dependency (2.2.5)
-```
+[`AGENTS.md`](https://github.com/cheejiayuan512/opencode-file-editor/blob/main/AGENTS.md)
+holds the test matrix, the rules the tests enforce and why each one exists, and
+the release procedure.
 
 ## Releasing
 
