@@ -4,6 +4,11 @@
 with tabs, autosave, external-change protection, Markdown preview, and a folder
 browser. Published to npm as `opencode-file-editor`.
 
+**Before claiming anything works**, load the repo skill
+`.opencode/skills/verify-before-claiming/SKILL.md` (`@verify-before-claiming`).
+It lists the command that proves each kind of claim, the traps that already
+shipped bugs, and what to say when a check cannot be run.
+
 The plugin id is `file-editor`, declared in `src/index.ts`. Changing it renames
 every stored tab key for existing users — do not change it. It is a public id:
 another package claiming it would collide, so treat it as fixed.
