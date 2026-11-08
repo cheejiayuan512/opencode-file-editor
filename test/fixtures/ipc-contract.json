@@ -1,0 +1,13 @@
+{
+  "id": "file-editor.fs.v3",
+  "methods": [
+    "read",
+    "write",
+    "forceWrite",
+    "resolve",
+    "reveal",
+    "list",
+    "exists",
+    "isText"
+  ]
+}

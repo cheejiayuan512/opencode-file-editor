@@ -1,0 +1,5 @@
+node_modules/
+gui-experimental.cjs
+test/.build/
+*.tgz
+.DS_Store

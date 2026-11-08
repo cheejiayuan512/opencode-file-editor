@@ -1,0 +1,57 @@
+{
+  "name": "opencode-file-editor",
+  "version": "0.1.0",
+  "description": "A file editor panel for OpenCode Desktop: tabs, autosave, external-change protection, and Markdown preview.",
+  "type": "module",
+  "author": "JIAYUAN",
+  "files": [
+    "index.ts",
+    "gui-experimental.cjs",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "editor",
+    "file-editor",
+    "markdown",
+    "desktop"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cheejiayuan512/opencode-file-editor.git"
+  },
+  "homepage": "https://github.com/cheejiayuan512/opencode-file-editor#readme",
+  "bugs": {
+    "url": "https://github.com/cheejiayuan512/opencode-file-editor/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "build:tests": "node scripts/build-tests.mjs",
+    "pretest": "npm run build",
+    "test": "npm run build:tests && node --test \"test/*.test.mjs\"",
+    "verify:live": "node scripts/verify-live.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm run build && npm test"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "solid-js": "^1.9.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0",
+    "vite-plugin-solid": "^2.11.0"
+  }
+}
