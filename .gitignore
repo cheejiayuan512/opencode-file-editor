@@ -3,3 +3,5 @@ gui-experimental.cjs
 test/.build/
 *.tgz
 .DS_Store
+login.txt
+trust.txt
