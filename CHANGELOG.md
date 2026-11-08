@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3
+
+- README rewritten for public readers: explicit requirement line, `Ctrl/Cmd`
+  shortcuts, user-level troubleshooting, and absolute links so they resolve on
+  npmjs.com as well as GitHub.
+- Preview images regenerated with neutral paths (no personal username in the
+  breadcrumbs).
+
 ## 0.1.2
 
 - README: preview images for the table view, folder browser and source editor.

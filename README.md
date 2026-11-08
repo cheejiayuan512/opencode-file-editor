@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/opencode-file-editor?logo=npm)](https://www.npmjs.com/package/opencode-file-editor)
 [![npm downloads](https://img.shields.io/npm/dm/opencode-file-editor)](https://www.npmjs.com/package/opencode-file-editor)
-[![license](https://img.shields.io/npm/l/opencode-file-editor)](LICENSE)
+[![license](https://img.shields.io/npm/l/opencode-file-editor)](https://github.com/cheejiayuan512/opencode-file-editor/blob/main/LICENSE)
 [![CI](https://github.com/cheejiayuan512/opencode-file-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/cheejiayuan512/opencode-file-editor/actions/workflows/ci.yml)
 [![GitHub stars](https://img.shields.io/github/stars/cheejiayuan512/opencode-file-editor?style=flat)](https://github.com/cheejiayuan512/opencode-file-editor/stargazers)
 
@@ -11,6 +11,8 @@ autosave, and writes never clobber what the agent just changed.
 
 Built on the `@opencode/plugin/gui` SDK, so it uses the app's own buttons, fields,
 tooltips, themes and Markdown renderer instead of its own widgets.
+
+Requires **OpenCode Desktop 2.2 or newer**.
 
 ## Preview
 
@@ -60,8 +62,8 @@ into the current project's `node_modules`, and OpenCode never looks there. Use
 `opencode plugin add`, or list the package in `plugins` as above — OpenCode then
 installs it under its own prefix and loads it.
 
-Restart OpenCode Desktop, then open the panel with `mod+shift+e`, `/editor`, or
-**+ → File editor** in the session panel.
+Restart OpenCode Desktop, then open the panel with `Ctrl+Shift+E`
+(`Cmd+Shift+E` on macOS), `/editor`, or **+ → File editor** in the session panel.
 
 ## Use
 
@@ -80,6 +82,8 @@ Restart OpenCode Desktop, then open the panel with `mod+shift+e`, `/editor`, or
 - UTF-8 only. Invalid UTF-8 and binary files fall back to the app's preview.
 - Folder listings cap at 2,000 entries and show the real total.
 - This editor only exists inside OpenCode Desktop (GUI plugins are desktop-only).
+- Everything runs locally: it reads and writes the files you point it at. Nothing
+  is uploaded anywhere.
 
 ## Compatibility
 
@@ -87,22 +91,21 @@ Restart OpenCode Desktop, then open the panel with `mod+shift+e`, `/editor`, or
 |---|---|---|
 | 0.1.x | 2.2.x | ^2.2.5 |
 
-`npm run verify:live` checks the running app's plugin-API major against the
-dependency and fails when they diverge, so a host upgrade is caught before a
-release rather than by users.
+Tested against OpenCode Desktop 2.2.5. Each release checks the app's plugin-API
+major against the dependency before publishing, so a host upgrade fails the
+build instead of breaking users.
 
 ## Troubleshooting
 
-**Nothing opens when I click a file path.** The plugin loaded without its GUI
-part. Check with `npm run verify:live`; the usual cause is a `package.json`
-`exports` map, which makes the loader resolve the GUI bundle through
-`node_modules` instead of the package root.
+**Nothing opens when I click a file path.** Update to the latest version and
+restart OpenCode Desktop. If it still happens, open **Settings → Extensions →
+Plugins**, find the plugin and press **Reload**; a failed load is reported there.
 
-**The panel shows an error instead of a folder.** The Ipc contract is stale: the
-host keeps a contract registered under its id for the life of the app. Restart
-OpenCode Desktop after updating the plugin.
+**The panel shows an error instead of a folder.** Restart OpenCode Desktop. The
+plugin's Ipc contract is registered for the life of the app, so a freshly updated
+plugin needs the app to reconnect.
 
-**Two editor tabs fight over the same file.** An old copy is also installed.
+**Two editor tabs fight over the same file.** You have two copies installed.
 Remove either `~/.config/opencode/plugins/file-editor` or the npm package — both
 claim the id `file-editor`.
 
@@ -132,7 +135,8 @@ To try a local checkout instead of the published package:
 { "plugins": ["/absolute/path/to/opencode-file-editor"] }
 ```
 
-See `AGENTS.md` for the rules the tests enforce and why each one exists.
+See [`AGENTS.md`](https://github.com/cheejiayuan512/opencode-file-editor/blob/main/AGENTS.md)
+for the rules the tests enforce and why each one exists.
 
 ## Testing
 
@@ -158,33 +162,13 @@ ok  the bundle has no Node stub in its window path
 ok  the app's plugin API major matches the dependency (2.2.5)
 ```
 
-## Publishing
+## Releasing
 
-`prepublishOnly` runs typecheck, build and the full suite, so a regression blocks
-the upload.
-
-The npm account uses a **passkey**, so `npm publish --otp=…` cannot work: a
-passkey signs locally and never produces a code. Two ways to publish:
-
-1. **Manual (first release).** Run it in a real terminal — npm prints a URL and
-   the browser passkey prompt completes the write:
-
-   ```sh
-   npm publish
-   ```
-
-2. **Trusted publishing (every release after that).** Configure the package on
-   npmjs.com → Settings → Trusted Publishing → GitHub Actions
-   (`cheejiayuan512` / `opencode-file-editor` / `publish.yml`), then push a `v*`
-   tag. `.github/workflows/publish.yml` publishes over OIDC with provenance and
-   needs no OTP or token.
-
-Before publishing:
-
-1. `npm run verify:live` against the OpenCode version you support.
-2. Bump `version`, add a `CHANGELOG.md` entry, update the compatibility table.
-3. Tag `v<version>` so the GitHub release and the npm version agree.
+Maintainer notes live in [`AGENTS.md`](https://github.com/cheejiayuan512/opencode-file-editor/blob/main/AGENTS.md).
+In short: bump `version`, add a `CHANGELOG.md` entry, push a `v<version>` tag —
+`.github/workflows/publish.yml` publishes over OIDC with provenance, no token and
+no one-time password.
 
 ## License
 
-MIT
+[MIT](https://github.com/cheejiayuan512/opencode-file-editor/blob/main/LICENSE)
