@@ -1,6 +1,6 @@
 {
   "name": "opencode-file-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A file editor panel for OpenCode Desktop: tabs, autosave, external-change protection, and Markdown preview.",
   "type": "module",
   "author": "JIAYUAN",

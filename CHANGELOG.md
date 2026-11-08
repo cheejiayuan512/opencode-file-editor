@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- README: npm version, downloads, license, CI and stars badges.
+- README: explain that `npm install` alone does not register the plugin.
+- CI: OIDC publish workflow for `v*` tags (provenance, no token, no OTP).
+
 ## 0.1.0
 
 First release for OpenCode Desktop.

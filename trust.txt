@@ -1,0 +1,23 @@
+npm warn cli npm v11.21.2 does not support Node.js v22.6.0. This version of npm supports the following node versions: `^20.17.0 || >=22.9.0`. You can find the latest version at https://nodejs.org/.
+Establishing trust between opencode-file-editor package and GitHub Actions
+Anyone with GitHub repository write access can publish to opencode-file-editor
+Two-factor authentication is required for this operation
+
+package: opencode-file-editor
+file: publish.yml
+repository: cheejiayuan512/opencode-file-editor
+permissions: publish
+
+https://www.npmjs.com/package/opencode-file-editor
+https://github.com/cheejiayuan512/opencode-file-editor/blob/HEAD/.github/workflows/publish.yml
+https://github.com/cheejiayuan512/opencode-file-editor
+
+npm notice npm tokens that bypass 2FA are being restricted for account changes and direct publishing. Learn how to prepare: https://gh.io/npm-gat-bypass2fa-deprecation
+npm error code EOTP
+npm error This operation requires a one-time password.
+npm error Open this URL in your browser to authenticate:
+npm error   https://www.npmjs.com/auth/cli/***
+npm error
+npm error After authenticating, your token can be retrieved from:
+npm error   https://registry.npmjs.org/-/v1/done?authId=***
+npm error A complete log of this run can be found in: C:\Users\JIAYUAN\AppData\Local\npm-cache\_logs\2026-11-08T12_05_39_363Z-debug-0.log
