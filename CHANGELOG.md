@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- Preview images and the demo GIF are cropped to the panel, with no empty canvas
+  around them.
+
 ## 0.1.4
 
 - README: animated demo covering the table view, source editor, Markdown preview
