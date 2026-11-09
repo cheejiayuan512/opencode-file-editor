@@ -107,6 +107,7 @@ a broken build once.
 4. **Every release after that:** configure trusted publishing on npmjs.com
    (Settings → Trusted Publishing → GitHub Actions → `publish.yml`) and push a
    `v*` tag. `.github/workflows/publish.yml` publishes over OIDC with provenance,
-   no OTP and no long-lived token.
+   no OTP and no long-lived token, then opens the matching GitHub Release from
+   the tag (an existing release is left alone, so re-runs are safe).
 5. Do not keep a second copy in `~/.config/opencode/plugins/file-editor` after
    installing the published package: both claim the id.
