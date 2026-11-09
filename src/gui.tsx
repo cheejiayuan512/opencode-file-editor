@@ -8,6 +8,8 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  on,
+  type JSX,
 } from "solid-js";
 import { Schema } from "effect";
 import {
@@ -17,6 +19,9 @@ import {
   MenuItem,
   Panel,
   Plugin,
+  usePanel,
+  type Files,
+  type PanelFrame,
   type PanelTab,
   type SessionRef,
   type Ui,
@@ -59,6 +64,13 @@ import {
 } from "./view";
 import { parseRecent, pushRecent, serializeRecent } from "./recent";
 import { limitEntries, parentOf, sortEntries, type Entry } from "./browse";
+import {
+  flattenTree,
+  folderOfTreePath,
+  nextItem,
+  sameTreePath,
+  type TreeRow,
+} from "./tree";
 import { revealCommand } from "./reveal";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
@@ -201,6 +213,13 @@ function forgetRecent() {
 
 // The folder the single Browse tab shows; navigating inside it does not add tabs.
 const [browsePath, setBrowsePath] = createSignal("");
+
+// The rail's filter is shared by every tab, so switching files does not clear it.
+// Expansion lives in the host file model and survives on its own.
+const [railQuery, setRailQuery] = createSignal("");
+// Fallbacks for a host that predates the shared panel sidebar.
+const [railFallbackOpen, setRailFallbackOpen] = createSignal(true);
+const [railFallbackWidth, setRailFallbackWidth] = createSignal(240);
 
 function bump() {
   setTick((value) => value + 1);
@@ -1383,6 +1402,566 @@ function Editor(props: {
   );
 }
 
+const RAIL_MIN = 160;
+const RAIL_MAX = 520;
+
+function clampRailWidth(width: number) {
+  return Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(width)));
+}
+
+/**
+ * The workspace rail sits beside every tab, so the tree stays while files switch.
+ * The width and open state are the host's shared inner sidebar, which every side
+ * panel uses; the fallbacks keep a build that predates it working.
+ */
+function Workspace(props: {
+  ui: Ui;
+  panel: PanelFrame;
+  file: Files;
+  active: string;
+  open: (path: string) => void;
+  children: JSX.Element;
+}) {
+  const sidebar = () => (props.panel as Partial<PanelFrame>).sidebar;
+  const opened = () => sidebar()?.opened?.() ?? railFallbackOpen();
+  const width = () =>
+    clampRailWidth(sidebar()?.width?.() ?? railFallbackWidth());
+  const resize = (value: number) => {
+    const next = clampRailWidth(value);
+    const shared = sidebar();
+    if (shared?.resize) shared.resize(next);
+    else setRailFallbackWidth(next);
+  };
+  const toggle = () => {
+    const shared = sidebar();
+    if (shared?.toggle) shared.toggle();
+    else setRailFallbackOpen((value) => !value);
+  };
+
+  let drag: { x: number; width: number } | undefined;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        height: "100%",
+        "min-height": "0",
+        "box-sizing": "border-box",
+      }}
+    >
+      <Show when={props.panel.placement?.() !== "mobile"}>
+        <Show
+          when={opened()}
+          fallback={
+            <div
+              style={{
+                display: "flex",
+                "flex-direction": "column",
+                "align-items": "center",
+                gap: "6px",
+                padding: "4px 3px",
+                "flex-shrink": "0",
+                "border-right":
+                  "1px solid color-mix(in srgb, currentColor 10%, transparent)",
+              }}
+            >
+              <props.ui.IconButton
+                icon="file-tree"
+                label="Show files"
+                size="small"
+                onClick={toggle}
+              />
+            </div>
+          }
+        >
+          <div
+            style={{
+              width: `${width()}px`,
+              "flex-shrink": "0",
+              display: "flex",
+              "flex-direction": "column",
+              "min-height": "0",
+              "border-right":
+                "1px solid color-mix(in srgb, currentColor 10%, transparent)",
+            }}
+          >
+            <TreeRail
+              ui={props.ui}
+              file={props.file}
+              active={props.active}
+              open={props.open}
+              toggle={toggle}
+              visible={() => props.panel.visible()}
+            />
+          </div>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            title="Resize file tree"
+            style={{
+              width: "5px",
+              "flex-shrink": "0",
+              cursor: "col-resize",
+              "user-select": "none",
+              "touch-action": "none",
+            }}
+            onPointerDown={(event) => {
+              drag = { x: event.clientX, width: width() };
+              event.currentTarget.setPointerCapture(event.pointerId);
+              event.preventDefault();
+            }}
+            onPointerMove={(event) => {
+              if (!drag) return;
+              resize(drag.width + event.clientX - drag.x);
+            }}
+            onPointerUp={(event) => {
+              drag = undefined;
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onPointerCancel={() => {
+              drag = undefined;
+            }}
+          />
+        </Show>
+      </Show>
+
+      <div
+        style={{
+          flex: "1",
+          "min-width": "0",
+          "min-height": "0",
+          display: "flex",
+          "flex-direction": "column",
+        }}
+      >
+        {props.children}
+      </div>
+    </div>
+  );
+}
+
+function TreeRail(props: {
+  ui: Ui;
+  file: Files;
+  active: string;
+  open: (relative: string) => void;
+  toggle: () => void;
+  /** False while another tab is selected; only the visible rail searches. */
+  visible: () => boolean;
+}) {
+  const [results, setResults] = createSignal<readonly string[]>([]);
+  const [searching, setSearching] = createSignal(false);
+  const [searchError, setSearchError] = createSignal("");
+  const [rootError, setRootError] = createSignal("");
+  const [rootBusy, setRootBusy] = createSignal(false);
+  const [rootLoaded, setRootLoaded] = createSignal(false);
+  const [highlight, setHighlight] = createSignal<string>();
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let controller: AbortController | undefined;
+  let seq = 0;
+  // The query this rail last asked the server about. Hidden tabs keep their
+  // results; a tab that becomes visible catches up on the shared filter.
+  let built = "";
+
+  const activeRelative = () =>
+    props.active ? relativeTo(props.file.root, props.active) : "";
+  const searchingNow = () => railQuery().trim().length > 0;
+  // The first result is ready to open before the pointer moves.
+  const picked = () => {
+    const value = highlight();
+    return value && results().includes(value) ? value : results()[0];
+  };
+
+  // Read the host's loaded folders and their expansion on every render, so a
+  // toggle, a finished load or a filesystem change updates the rows.
+  const tree = createMemo(() =>
+    flattenTree(
+      (path) =>
+        props.file.tree.list(path).map((node) => ({
+          name: node.name,
+          path: node.path,
+          dir: node.type === "directory",
+          ignored: node.ignored,
+        })),
+      (path) => props.file.tree.state(path)?.expanded === true,
+      (path) => props.file.tree.state(path),
+    ),
+  );
+
+  async function loadRoot(force = false) {
+    setRootBusy(true);
+    try {
+      await props.file.tree.sync("", force ? { force: true } : undefined);
+      setRootError("");
+      setRootLoaded(true);
+    } catch (error) {
+      setRootError(explain(error));
+    } finally {
+      setRootBusy(false);
+    }
+  }
+
+  function searchFor(text: string) {
+    clearTimeout(timer);
+    controller?.abort();
+    seq += 1;
+    setHighlight(undefined);
+    setSearchError("");
+    setResults([]);
+    if (!text) {
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const run = seq;
+    timer = setTimeout(() => {
+      const request = new AbortController();
+      controller = request;
+      void props.file
+        .search(text, { kind: "file", limit: 200, signal: request.signal })
+        .then((paths) => {
+          if (run !== seq) return;
+          setResults(paths);
+          setSearching(false);
+        })
+        .catch((error) => {
+          if (run !== seq || request.signal.aborted) return;
+          setResults([]);
+          setSearching(false);
+          setSearchError(explain(error));
+        });
+    }, 120);
+  }
+
+  function changeQuery(value: string) {
+    setRailQuery(value);
+  }
+
+  // Every open tab keeps its render mounted; only the selected one searches.
+  createEffect(() => {
+    const key = `${props.file.root}\n${railQuery().trim()}`;
+    if (!props.visible()) return;
+    if (key === built) return;
+    built = key;
+    searchFor(railQuery().trim());
+  });
+
+  function toggleFolder(row: TreeRow) {
+    if (row.expanded) {
+      props.file.tree.collapse(row.path);
+      return;
+    }
+
+    // Expanding loads the folder's entries by default, as the app's own tree does.
+    props.file.tree.expand(row.path);
+  }
+
+  function choose(path: string | undefined) {
+    if (path) props.open(path);
+  }
+
+  function onFilterKeyDown(event: KeyboardEvent) {
+    if (!searchingNow()) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      changeQuery("");
+      return;
+    }
+    const files = results();
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlight(
+        nextItem(
+          files,
+          highlight(),
+          event.key === "ArrowDown" ? 1 : -1,
+        ),
+      );
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      choose(picked());
+    }
+  }
+
+  // The workspace root changes when a session moves; reload its first level.
+  createEffect(
+    on(
+      () => props.file.root,
+      () => void loadRoot(),
+    ),
+  );
+
+  onCleanup(() => {
+    clearTimeout(timer);
+    controller?.abort();
+  });
+
+  const note = (text: string, error = false) => (
+    <div
+      role={error ? "alert" : "status"}
+      style={{
+        padding: "8px 10px",
+        "font-size": "11.5px",
+        opacity: error ? "0.9" : "0.6",
+      }}
+    >
+      {text}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        "flex-direction": "column",
+        "min-height": "0",
+        height: "100%",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: "4px",
+          "align-items": "center",
+          padding: "4px 6px",
+          "border-bottom":
+            "1px solid color-mix(in srgb, currentColor 10%, transparent)",
+        }}
+      >
+        <span
+          title={props.file.root}
+          style={{
+            flex: "1",
+            "min-width": "0",
+            overflow: "hidden",
+            "text-overflow": "ellipsis",
+            "white-space": "nowrap",
+            "font-size": "12px",
+            "font-weight": "600",
+          }}
+        >
+          {basenameOf(props.file.root) || props.file.root}
+        </span>
+        <props.ui.IconButton
+          icon="outline-rotate-clockwise"
+          label="Refresh files"
+          size="small"
+          busy={rootBusy()}
+          onClick={() => void loadRoot(true)}
+        />
+        <props.ui.IconButton
+          icon="chevron-left"
+          label="Hide file tree"
+          size="small"
+          onClick={props.toggle}
+        />
+      </div>
+
+      <div style={{ padding: "6px" }} onKeyDown={onFilterKeyDown}>
+        <props.ui.TextInput
+          value={railQuery()}
+          onInput={changeQuery}
+          onSubmit={() => choose(picked())}
+          label="Filter files in this workspace"
+          placeholder="Filter files"
+          type="search"
+          class="w-full"
+        />
+      </div>
+
+      <div
+        style={{
+          flex: "1",
+          "min-height": "0",
+          "overflow-y": "auto",
+          padding: "2px 4px 8px",
+        }}
+      >
+        <Show
+          when={searchingNow()}
+          fallback={
+            <>
+              <Show when={rootBusy() && tree().rows.length === 0}>
+                {note("Loading…")}
+              </Show>
+              <Show when={rootError()}>
+                {note(`Could not read this workspace: ${rootError()}`, true)}
+              </Show>
+              <Show
+                when={rootLoaded() && !rootError() && tree().rows.length === 0}
+              >
+                {note("This workspace has no files.")}
+              </Show>
+              <For each={tree().rows}>
+                {(row) => {
+                  const selected = () =>
+                    !row.dir && sameTreePath(row.path, activeRelative());
+                  return (
+                    <div
+                      style={{
+                        background: selected()
+                          ? "color-mix(in srgb, currentColor 9%, transparent)"
+                          : undefined,
+                        "border-radius": "6px",
+                      }}
+                    >
+                      <props.ui.Button
+                        variant="ghost"
+                        size="small"
+                        class="w-full"
+                        onClick={() =>
+                          row.dir ? toggleFolder(row) : choose(row.path)
+                        }
+                      >
+                        <span
+                          style={{
+                            display: "flex",
+                            gap: "6px",
+                            width: "100%",
+                            "min-width": "0",
+                            "align-items": "center",
+                            "text-align": "left",
+                            "padding-left": `${row.depth * 12}px`,
+                            opacity: row.ignored ? "0.45" : undefined,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "flex",
+                              width: "14px",
+                              "flex-shrink": "0",
+                              opacity: "0.6",
+                            }}
+                          >
+                            <Show when={row.dir}>
+                              <props.ui.Icon
+                                name={
+                                  row.expanded
+                                    ? "chevron-down"
+                                    : "chevron-right"
+                                }
+                                size="small"
+                              />
+                            </Show>
+                          </span>
+                          <span
+                            style={{
+                              display: "flex",
+                              "flex-shrink": "0",
+                              // Folders read as amber, files stay neutral.
+                              color: row.dir
+                                ? "var(--color-folder, #d9a441)"
+                                : undefined,
+                            }}
+                          >
+                            <props.ui.Icon
+                              name={row.dir ? "folder" : "file-document"}
+                              size="small"
+                            />
+                          </span>
+                          <span
+                            style={{
+                              overflow: "hidden",
+                              "text-overflow": "ellipsis",
+                              "white-space": "nowrap",
+                              "font-weight": row.dir ? "600" : undefined,
+                            }}
+                          >
+                            {row.name}
+                          </span>
+                          <Show when={row.loading}>
+                            <span style={{ "font-size": "11px", opacity: "0.5" }}>
+                              …
+                            </span>
+                          </Show>
+                        </span>
+                      </props.ui.Button>
+                    </div>
+                  );
+                }}
+              </For>
+              <Show when={tree().truncated}>
+                {note(`Showing the first ${tree().rows.length} entries.`)}
+              </Show>
+            </>
+          }
+        >
+          <Show when={searching()}>{note("Searching…")}</Show>
+          <Show when={searchError()}>
+            {note(`Search failed: ${searchError()}`, true)}
+          </Show>
+          <Show when={!searching() && !searchError() && results().length === 0}>
+            {note(`No files match “${railQuery().trim()}”.`)}
+          </Show>
+          <For each={results()}>
+            {(path) => {
+              const selected = () => picked() === path;
+              return (
+                <div
+                  style={{
+                    background: selected()
+                      ? "color-mix(in srgb, currentColor 10%, transparent)"
+                      : undefined,
+                    "border-radius": "6px",
+                  }}
+                  onMouseEnter={() => setHighlight(path)}
+                >
+                  <props.ui.Button
+                    variant="ghost"
+                    size="small"
+                    class="w-full"
+                    onClick={() => choose(path)}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        width: "100%",
+                        "min-width": "0",
+                        "align-items": "baseline",
+                        "text-align": "left",
+                      }}
+                    >
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                      >
+                        {basenameOf(path)}
+                      </span>
+                      <span
+                        style={{
+                          flex: "1",
+                          "min-width": "0",
+                          opacity: "0.45",
+                          "font-size": "11px",
+                          "text-align": "right",
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                      >
+                        {folderOfTreePath(path)}
+                      </span>
+                    </span>
+                  </props.ui.Button>
+                </div>
+              );
+            }}
+          </For>
+        </Show>
+      </div>
+    </div>
+  );
+}
+
 export default Plugin.define({
   i18n: {
     en: {
@@ -1392,7 +1971,7 @@ export default Plugin.define({
     },
   },
   setup(ctx) {
-    console.log("[file-editor] gui v28");
+    console.log("[file-editor] gui v29");
     const fs = ctx.main(Fs);
 
     ctx.add(Panel, {
@@ -1445,78 +2024,87 @@ export default Plugin.define({
         return tabs;
       },
       render: (props) => {
-        if (props.tab.id === BROWSER) {
-          return (
-            <Browser
-              fs={fs}
-              ui={ctx.ui}
-              start={() => browsePath() || props.session.directory}
-              open={(target) =>
-                ctx.layout.open(tabKey(target), props.session, {
-                  tab: "select",
-                })
-              }
-            />
-          );
-        }
+        const panel = usePanel();
+        const active = props.tab.id.startsWith("file:")
+          ? pathFromId(props.tab.id, props.session.directory)
+          : "";
+        const openFile = (target: string) => {
+          // The rail names workspace-relative paths; a tab is keyed by the
+          // absolute file so the same file is one tab from every entry point.
+          const absolute = canonicalPath(target, props.screen.file.root);
+          rememberRecent(absolute);
+          ctx.layout.open(tabKey(absolute), props.session, { tab: "select" });
+        };
 
-        const path = pathFromId(props.tab.id, props.session.directory);
         return (
-          <Editor
-            fs={fs}
-            base={() => props.session.directory}
-            path={path}
-            open={(target) =>
-              ctx.layout.open(tabKey(target), props.session, {
-                tab: "select",
-              })
-            }
-            browseFolder={(target) => {
-              setBrowsePath(target);
-              ctx.layout.open(keyFor(BROWSER), props.session, {
-                tab: "select",
-              });
-            }}
-            openSettings={() =>
-              ctx.dialogs.open((dialog) => (
-                <ctx.ui.Dialog
-                  title="Editor settings"
-                  description="Applies to every open file."
-                  footer={
-                    <ctx.ui.Button onClick={() => dialog.close()}>
-                      Done
-                    </ctx.ui.Button>
-                  }
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      "flex-direction": "column",
-                      gap: "14px",
-                    }}
-                  >
-                    <ctx.ui.Switch
-                      label="Line numbers"
-                      checked={lineNumbers()}
-                      onChange={setLineNumbers}
-                    />
-                    <ctx.ui.Switch
-                      label="Word wrap"
-                      checked={wordWrap()}
-                      onChange={setWordWrap}
-                    />
-                    <ctx.ui.Switch
-                      label="Auto save"
-                      description="Saves after a pause. Ctrl+S always saves."
-                      checked={autoSave()}
-                      onChange={setAutoSave}
-                    />
-                  </div>
-                </ctx.ui.Dialog>
-              ))
-            }
+          <Workspace
             ui={ctx.ui}
-          />
+            panel={panel}
+            file={props.screen.file}
+            active={active}
+            open={openFile}
+          >
+            {props.tab.id === BROWSER ? (
+              <Browser
+                fs={fs}
+                ui={ctx.ui}
+                start={() => browsePath() || props.session.directory}
+                open={openFile}
+              />
+            ) : (
+              <Editor
+                fs={fs}
+                base={() => props.session.directory}
+                path={pathFromId(props.tab.id, props.session.directory)}
+                open={openFile}
+                browseFolder={(target) => {
+                  setBrowsePath(target);
+                  ctx.layout.open(keyFor(BROWSER), props.session, {
+                    tab: "select",
+                  });
+                }}
+                openSettings={() =>
+                  ctx.dialogs.open((dialog) => (
+                    <ctx.ui.Dialog
+                      title="Editor settings"
+                      description="Applies to every open file."
+                      footer={
+                        <ctx.ui.Button onClick={() => dialog.close()}>
+                          Done
+                        </ctx.ui.Button>
+                      }
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          "flex-direction": "column",
+                          gap: "14px",
+                        }}
+                      >
+                        <ctx.ui.Switch
+                          label="Line numbers"
+                          checked={lineNumbers()}
+                          onChange={setLineNumbers}
+                        />
+                        <ctx.ui.Switch
+                          label="Word wrap"
+                          checked={wordWrap()}
+                          onChange={setWordWrap}
+                        />
+                        <ctx.ui.Switch
+                          label="Auto save"
+                          description="Saves after a pause. Ctrl+S always saves."
+                          checked={autoSave()}
+                          onChange={setAutoSave}
+                        />
+                      </div>
+                    </ctx.ui.Dialog>
+                  ))
+                }
+                ui={ctx.ui}
+              />
+            )}
+          </Workspace>
         );
       },
     });

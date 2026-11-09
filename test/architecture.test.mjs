@@ -15,6 +15,7 @@ const RENDERER_MODULES = [
   "view",
   "recent",
   "browse",
+  "tree",
   "reveal",
 ];
 

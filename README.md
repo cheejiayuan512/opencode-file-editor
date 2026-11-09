@@ -12,7 +12,7 @@ autosave, and writes never clobber what the agent just changed.
 Built on the `@opencode/plugin/gui` SDK, so it uses the app's own buttons, fields,
 tooltips, themes and Markdown renderer instead of its own widgets.
 
-Requires **OpenCode Desktop 2.2 or newer**.
+Requires **OpenCode Desktop 2.2.5 or newer**.
 
 ## Preview
 
@@ -38,6 +38,10 @@ open them to try the panel.</sub>
 - **Line numbers** that follow word wrap, plus wrap and auto-save toggles.
 - **Folder browser** — click any breadcrumb segment to browse, with folders and
   files colour-coded. One Browse tab, no tab per folder.
+- **Workspace tree** — the session workspace in a collapsible sidebar, loaded one
+  folder at a time, with ignored files muted. It stays put while you switch tabs.
+- **Quick open** — type in the rail's filter for fuzzy paths; `Up`/`Down` moves
+  the highlight and `Enter` opens it.
 - **Recent files** on the **Open file** tab.
 - **Reveal in file manager** and **copy relative path**.
 - Opens file links from chat in a tab instead of the read-only preview.
@@ -70,6 +74,8 @@ Restart OpenCode Desktop, then open the panel with `Ctrl+Shift+E`
 - **Open a file** — click a file path in chat, type one in the panel
   (`src/App.tsx`, `C:\...`, `~/notes.md`, `../other/file.ts`), or pick from
   **Recent** / **Browse files**.
+- **Find a file** — expand the tree in the sidebar, or type in its filter to
+  quick-open any path in the workspace.
 - **Navigate** — breadcrumb segments are buttons; each opens the folder.
 - **Save** — autosave after a pause; `Ctrl/Cmd+S` saves now. **Reload** re-reads
   from disk. `⋯` holds save, discard, reload, copy path, browse, reveal, settings.
@@ -81,6 +87,9 @@ Restart OpenCode Desktop, then open the panel with `Ctrl+Shift+E`
 - 2 MB per file; the panel is not a replacement for a large-file editor.
 - UTF-8 only. Invalid UTF-8 and binary files fall back to the app's preview.
 - Folder listings cap at 2,000 entries and show the real total.
+- The tree covers the session's workspace. A file outside it still opens through
+  **Open file** or **Browse files**.
+- Quick open returns at most 200 results.
 - This editor only exists inside OpenCode Desktop (GUI plugins are desktop-only).
 - Everything runs locally: it reads and writes the files you point it at. Nothing
   is uploaded anywhere.
@@ -90,8 +99,9 @@ Restart OpenCode Desktop, then open the panel with `Ctrl+Shift+E`
 | opencode-file-editor | OpenCode Desktop | `@opencode/plugin` |
 |---|---|---|
 | 0.1.x | 2.2.x | ^2.2.5 |
+| 0.2.x | 2.2.5+ | ^2.2.5 |
 
-Tested against OpenCode Desktop 2.2.5. Each release checks the app's plugin-API
+Tested against OpenCode Desktop 2.2.6. Each release checks the app's plugin-API
 major against the dependency before publishing, so a host upgrade fails the
 build instead of breaking users.
 
@@ -125,8 +135,8 @@ package `exports` entry makes it resolve `<name>/gui-experimental` through
 `node_modules`, which cannot work for a directory you point at directly.
 
 The pure logic lives in `src/paths.ts`, `src/links.ts`, `src/tabs.ts`,
-`src/status.ts`, `src/view.ts`, `src/recent.ts`, `src/browse.ts` and
-`src/reveal.ts`; the filesystem is isolated in `src/fs-core.ts`; the UI is
+`src/status.ts`, `src/view.ts`, `src/recent.ts`, `src/browse.ts`, `src/tree.ts`
+and `src/reveal.ts`; the filesystem is isolated in `src/fs-core.ts`; the UI is
 `src/gui.tsx`.
 
 To try a local checkout instead of the published package:

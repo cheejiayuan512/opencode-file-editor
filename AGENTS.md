@@ -16,10 +16,10 @@ another package claiming it would collide, so treat it as fixed.
 ## Layout
 
 - `index.ts` — server half. Exists only to own the id; it registers nothing.
-- `src/gui.tsx` — the GUI half: the Ipc contract, the panel, the editor, the browser.
+- `src/gui.tsx` — the GUI half: the Ipc contract, the panel, the editor, the tree rail, the browser.
 - `src/fs-core.ts` — the only module that touches the filesystem. Main process only.
 - `src/paths.ts`, `links.ts`, `tabs.ts`, `status.ts`, `view.ts`, `recent.ts`,
-  `browse.ts`, `reveal.ts` — pure logic the window imports. No Node builtins.
+  `browse.ts`, `tree.ts`, `reveal.ts` — pure logic the window imports. No Node builtins.
 - `test/` — Node test runner. `scripts/` — test build and live verification.
 - `gui-experimental.cjs` — build output at the package root, never committed.
 
@@ -36,11 +36,11 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 88 assertions with no app running:
+`npm test` builds first, then runs 98 assertions with no app running:
 
 | File | Guards |
 |---|---|
-| `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting |
+| `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse`, `tree` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting, tree rows and keyboard picks |
 | `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
 | `architecture` | renderer modules import no Node builtins, every `layout.open` uses `tab: "select"`, the panel uses `wide`, refs are attached |
 | `bundle` | file-name layout (no `exports`), version marker matches the source, parses as CommonJS |
@@ -85,6 +85,10 @@ a broken build once.
 
 ## Behaviour worth preserving
 
+- The workspace rail is host-backed: `props.screen.file.tree` loads one folder
+  at a time and `file.search` answers quick open, so there is no second walk of
+  the workspace. Only the selected tab's rail searches; every open tab keeps its
+  render mounted.
 - Writes are atomic (temp file + rename) and refuse when the file changed on
   disk since it was read; the panel asks **Reload** or **Overwrite**.
 - BOM and CRLF are preserved; 2 MB and strict UTF-8 limits are enforced.

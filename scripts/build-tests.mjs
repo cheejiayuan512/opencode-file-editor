@@ -14,6 +14,7 @@ const entries = [
   "recent",
   "reveal",
   "browse",
+  "tree",
 ];
 
 await rm(outdir, { recursive: true, force: true });

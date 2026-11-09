@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- **Workspace tree** in a collapsible sidebar, beside every file tab. It reads
+  the app's own file model: folders load as you open them, ignored files stay
+  muted, and the rail survives tab switches.
+- **Quick open**: type in the rail's filter for fuzzy path results, move with
+  `Up`/`Down`, and press `Enter` to open. `Esc` clears the filter.
+- The rail's width and open state are the app's shared panel sidebar, so they
+  persist across restarts; drag its edge to resize.
+- No new Ipc method: updating from 0.1.x needs no app restart.
+
 ## 0.1.6
 
 - The **File editor** entry in the `+` menu now shows the panel instead of
