@@ -16,12 +16,15 @@ Requires **OpenCode Desktop 2.2.5 or newer**.
 
 ## Preview
 
-<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/demo.gif" alt="Switching between the CSV table view, the source editor, the Markdown preview and the folder browser" width="880">
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/demo.gif" alt="Switching between the CSV table view, quick open, the source editor, the Markdown preview and the folder browser" width="880">
 
-<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/table-view.png" alt="A CSV opened in the table view, with recent files in the side panel" width="880">
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/quick-open.png" alt="Quick open filtered to gui, in the panel's workspace tree" width="880">
 
-<sub>Previews use sample data and follow your OpenCode theme. The files in the
-demo live in <a href="https://github.com/cheejiayuan512/opencode-file-editor/tree/main/docs/samples">docs/samples</a> —
+<img src="https://raw.githubusercontent.com/cheejiayuan512/opencode-file-editor/main/docs/table-view.png" alt="A CSV opened in the table view, with the workspace tree beside it" width="880">
+
+<sub>The previews are rendered from <a href="https://github.com/cheejiayuan512/opencode-file-editor/blob/main/docs/preview.html">docs/preview.html</a>
+with sample data and follow your OpenCode theme. Sample files live in
+<a href="https://github.com/cheejiayuan512/opencode-file-editor/tree/main/docs/samples">docs/samples</a> —
 open them to try the panel.</sub>
 
 ## Features

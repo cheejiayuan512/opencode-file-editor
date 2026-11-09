@@ -58,6 +58,71 @@
       }
       .tab .x { color: var(--faint); }
       .plus { color: var(--faint); padding: 0 6px; }
+
+      .main { flex: 1; min-height: 0; display: flex; }
+      .pane { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+      /* The workspace rail */
+      .rail {
+        width: 250px;
+        flex-shrink: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+      }
+      .rail-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+      }
+      .rail-title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .rail-actions { color: var(--dim); font-size: 12px; letter-spacing: 3px; padding-right: 2px; }
+      .rail-body { padding: 6px; min-height: 0; overflow: hidden; }
+      .filter {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        margin-bottom: 4px;
+        padding: 0 8px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--faint);
+        font-size: 12px;
+      }
+      .filter .q { color: var(--text); }
+      .tree { padding-top: 2px; }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 6px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        color: var(--dim);
+      }
+      .row .chev { width: 11px; flex-shrink: 0; color: var(--faint); font-size: 10px; text-align: center; }
+      .row .ficon { flex-shrink: 0; font-size: 12px; }
+      .row.dir .ficon { color: var(--amber); }
+      .row.file .ficon { opacity: 0.65; }
+      .row.dir .name { color: var(--text); font-weight: 600; }
+      .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .row .meta { margin-left: auto; color: var(--faint); font-size: 11px; }
+      .row.active { background: rgba(255, 255, 255, 0.09); }
+      .row.ignored { opacity: 0.45; }
+      .row:hover { background: rgba(255, 255, 255, 0.05); }
+
       .head {
         display: flex;
         align-items: center;
@@ -108,28 +173,7 @@
         gap: 6px;
       }
       .dot { color: var(--amber); }
-      .rows { padding: 4px; }
-      .row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12.5px;
-      }
-      .row:hover { background: rgba(255, 255, 255, 0.05); }
-      .row .icon { width: 16px; text-align: center; }
-      .row.dir .icon { color: var(--amber); }
-      .row.dir .name { font-weight: 600; }
-      .row.file .icon { opacity: 0.65; }
-      .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .row .meta { margin-left: auto; color: var(--faint); font-size: 11.5px; }
-      .side { width: 250px; border-left: 1px solid var(--line); padding: 10px; }
-      .side h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
-      .recent { display: flex; flex-direction: column; gap: 2px; }
-      .recent div { display: flex; gap: 10px; padding: 4px 6px; border-radius: 6px; font-size: 12px; }
-      .recent div:hover { background: rgba(255, 255, 255, 0.05); }
-      .recent .folder { margin-left: auto; color: var(--faint); font-size: 11px; }
+      .rows { padding: 4px; flex: 1; }
       .editor { display: flex; flex: 1; min-height: 0; }
       .gutter {
         padding: 10px 6px 10px 10px;
@@ -181,59 +225,115 @@
     </style>
   </head>
   <body>
-    <!-- 1: CSV in table view + recent files -->
-    <div class="shot" id="table" role="img" aria-label="Table view">
+    <!-- 1: CSV in table view, beside the workspace tree -->
+    <div class="shot" id="table" role="img" aria-label="Table view with the workspace tree">
       <div class="tabs">
         <div class="tab">Open file</div>
         <div class="tab active">workouts.csv <span class="x">×</span></div>
         <div class="tab">README.md <span class="x">×</span></div>
         <div class="plus">+</div>
       </div>
-      <div class="head">
-        <div class="crumbs">
-          <span class="up">C:</span><span class="sep">›</span>
-          <span class="up">Users</span><span class="sep">›</span>
-          <span class="up">you</span><span class="sep">›</span>
-          <span class="up">app</span><span class="sep">›</span>
-          <span class="file">workouts.csv</span>
-        </div>
-        <div class="seg"><button class="on">Table</button><button>Source</button></div>
-        <div class="dots">⋯</div>
-      </div>
-      <div class="body">
-        <table>
-          <thead>
-            <tr>
-              <th class="num">#</th><th>Date</th><th>Workout</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td class="num">1</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>1</td><td>80.0</td><td>5.0</td></tr>
-            <tr><td class="num">2</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
-            <tr><td class="num">3</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>2</td><td>80.0</td><td>5.0</td></tr>
-            <tr><td class="num">4</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>1</td><td>60.0</td><td>5.0</td></tr>
-            <tr><td class="num">5</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
-            <tr><td class="num">6</td><td>2026-11-03 18:28</td><td>Strong 5x5 — A</td><td>Barbell Row</td><td>1</td><td>50.0</td><td>5.0</td></tr>
-            <tr><td class="num">7</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>1</td><td>100.0</td><td>3.0</td></tr>
-            <tr><td class="num">8</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>2</td><td>100.0</td><td>3.0</td></tr>
-            <tr><td class="num">9</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>1</td><td>40.0</td><td>5.0</td></tr>
-            <tr><td class="num">10</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>2</td><td>40.0</td><td>5.0</td></tr>
-          </tbody>
-        </table>
-        <div class="side">
-          <h4>Recent</h4>
-          <div class="recent">
-            <div>workouts.csv <span class="folder">app</span></div>
-            <div>README.md <span class="folder">app</span></div>
-            <div>App.tsx <span class="folder">app</span></div>
-            <div>button.tsx <span class="folder">src/components</span></div>
+      <div class="main">
+        <aside class="rail" data-active="workouts.csv">
+          <div class="rail-head">
+            <span class="rail-title">app</span>
+            <span class="rail-actions">⟳ ‹</span>
           </div>
-        </div>
+          <div class="rail-body"></div>
+        </aside>
+        <section class="pane">
+          <div class="head">
+            <div class="crumbs">
+              <span class="up">C:</span><span class="sep">›</span>
+              <span class="up">Users</span><span class="sep">›</span>
+              <span class="up">you</span><span class="sep">›</span>
+              <span class="up">app</span><span class="sep">›</span>
+              <span class="file">workouts.csv</span>
+            </div>
+            <div class="seg"><button class="on">Table</button><button>Source</button></div>
+            <div class="dots">⋯</div>
+          </div>
+          <div class="body">
+            <table>
+              <thead>
+                <tr>
+                  <th class="num">#</th><th>Date</th><th>Workout</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="num">1</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>1</td><td>80.0</td><td>5.0</td></tr>
+                <tr><td class="num">2</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
+                <tr><td class="num">3</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>2</td><td>80.0</td><td>5.0</td></tr>
+                <tr><td class="num">4</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>1</td><td>60.0</td><td>5.0</td></tr>
+                <tr><td class="num">5</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
+                <tr><td class="num">6</td><td>2026-11-03 18:28</td><td>Strong 5x5 — A</td><td>Barbell Row</td><td>1</td><td>50.0</td><td>5.0</td></tr>
+                <tr><td class="num">7</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>1</td><td>100.0</td><td>3.0</td></tr>
+                <tr><td class="num">8</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>2</td><td>100.0</td><td>3.0</td></tr>
+                <tr><td class="num">9</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>1</td><td>40.0</td><td>5.0</td></tr>
+                <tr><td class="num">10</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>2</td><td>40.0</td><td>5.0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="status"><span class="dot">●</span> Autosaved 18:41:02</div>
+        </section>
       </div>
-      <div class="status"><span class="dot">●</span> Autosaved 18:41:02</div>
     </div>
 
-    <!-- 2: folder browser -->
+    <!-- 2: quick open, filtered to gui -->
+    <div class="shot" id="search" role="img" aria-label="Quick open in the workspace tree">
+      <div class="tabs">
+        <div class="tab">Open file</div>
+        <div class="tab active">workouts.csv <span class="x">×</span></div>
+        <div class="tab">README.md <span class="x">×</span></div>
+        <div class="plus">+</div>
+      </div>
+      <div class="main">
+        <aside class="rail" data-filter="gui" data-results="gui.tsx:src,panel.tsx:src/gui,gui-notes.md:docs,tree.ts:src">
+          <div class="rail-head">
+            <span class="rail-title">app</span>
+            <span class="rail-actions">⟳ ‹</span>
+          </div>
+          <div class="rail-body"></div>
+        </aside>
+        <section class="pane">
+          <div class="head">
+            <div class="crumbs">
+              <span class="up">C:</span><span class="sep">›</span>
+              <span class="up">Users</span><span class="sep">›</span>
+              <span class="up">you</span><span class="sep">›</span>
+              <span class="up">app</span><span class="sep">›</span>
+              <span class="file">workouts.csv</span>
+            </div>
+            <div class="seg"><button class="on">Table</button><button>Source</button></div>
+            <div class="dots">⋯</div>
+          </div>
+          <div class="body">
+            <table>
+              <thead>
+                <tr>
+                  <th class="num">#</th><th>Date</th><th>Workout</th><th>Exercise</th><th>Set</th><th>Weight</th><th>Reps</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="num">1</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>1</td><td>80.0</td><td>5.0</td></tr>
+                <tr><td class="num">2</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
+                <tr><td class="num">3</td><td>2026-11-03 18:20</td><td>Strong 5x5 — A</td><td>Squat (Barbell)</td><td>2</td><td>80.0</td><td>5.0</td></tr>
+                <tr><td class="num">4</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>1</td><td>60.0</td><td>5.0</td></tr>
+                <tr><td class="num">5</td><td>2026-11-03 18:24</td><td>Strong 5x5 — A</td><td>Bench Press</td><td>Rest</td><td>0.0</td><td>0.0</td></tr>
+                <tr><td class="num">6</td><td>2026-11-03 18:28</td><td>Strong 5x5 — A</td><td>Barbell Row</td><td>1</td><td>50.0</td><td>5.0</td></tr>
+                <tr><td class="num">7</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>1</td><td>100.0</td><td>3.0</td></tr>
+                <tr><td class="num">8</td><td>2026-11-05 07:05</td><td>Evening Workout</td><td>Deadlift</td><td>2</td><td>100.0</td><td>3.0</td></tr>
+                <tr><td class="num">9</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>1</td><td>40.0</td><td>5.0</td></tr>
+                <tr><td class="num">10</td><td>2026-11-05 07:12</td><td>Evening Workout</td><td>Overhead Press</td><td>2</td><td>40.0</td><td>5.0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="status"><span class="dot">●</span> Autosaved 18:41:02</div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 3: folder browser, beside the tree -->
     <div class="shot" id="browse" role="img" aria-label="Folder browser">
       <div class="tabs">
         <div class="tab">Open file</div>
@@ -241,56 +341,77 @@
         <div class="tab">App.tsx <span class="x">×</span></div>
         <div class="plus">+</div>
       </div>
-      <div class="head">
-        <div class="crumbs">
-          <span class="up">↑</span>
-          <span class="up">C:</span><span class="sep">›</span>
-          <span class="up">Users</span><span class="sep">›</span>
-          <span class="up">you</span><span class="sep">›</span>
-          <span class="up">Projects</span><span class="sep">›</span>
-          <span class="file">app</span>
-        </div>
-        <div class="dots">⋯</div>
+      <div class="main">
+        <aside class="rail" data-active="">
+          <div class="rail-head">
+            <span class="rail-title">app</span>
+            <span class="rail-actions">⟳ ‹</span>
+          </div>
+          <div class="rail-body"></div>
+        </aside>
+        <section class="pane">
+          <div class="head">
+            <div class="crumbs">
+              <span class="up">↑</span>
+              <span class="up">C:</span><span class="sep">›</span>
+              <span class="up">Users</span><span class="sep">›</span>
+              <span class="up">you</span><span class="sep">›</span>
+              <span class="up">Projects</span><span class="sep">›</span>
+              <span class="file">app</span>
+            </div>
+            <div class="dots">⋯</div>
+          </div>
+          <div class="body">
+            <div class="rows">
+              <div class="row dir"><span class="chev"></span><span class="ficon">📁</span><span class="name">.github</span></div>
+              <div class="row dir"><span class="chev"></span><span class="ficon">📁</span><span class="name">docs</span></div>
+              <div class="row dir"><span class="chev"></span><span class="ficon">📁</span><span class="name">e2e</span></div>
+              <div class="row dir"><span class="chev"></span><span class="ficon">📁</span><span class="name">src</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">AGENTS.md</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">App.tsx</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">README.md</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">app.json</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">package.json</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">tsconfig.json</span></div>
+              <div class="row file"><span class="chev"></span><span class="ficon">📄</span><span class="name">workouts.csv</span></div>
+            </div>
+          </div>
+          <div class="status">Showing 11 of 11 entries</div>
+        </section>
       </div>
-      <div class="body">
-        <div class="rows" style="flex: 1">
-          <div class="row dir"><span class="icon">📁</span><span class="name">.github</span></div>
-          <div class="row dir"><span class="icon">📁</span><span class="name">docs</span></div>
-          <div class="row dir"><span class="icon">📁</span><span class="name">e2e</span></div>
-          <div class="row dir"><span class="icon">📁</span><span class="name">src</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">AGENTS.md</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">App.tsx</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">README.md</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">app.json</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">package.json</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">tsconfig.json</span></div>
-          <div class="row file"><span class="icon">📄</span><span class="name">workouts.csv</span></div>
-        </div>
-      </div>
-      <div class="status">Showing 11 of 11 entries</div>
     </div>
 
-    <!-- 3: markdown source with line numbers -->
+    <!-- 4: source editor with line numbers -->
     <div class="shot" id="editor" role="img" aria-label="Source editor">
       <div class="tabs">
         <div class="tab">Open file</div>
         <div class="tab active">App.tsx <span class="x">×</span></div>
         <div class="plus">+</div>
       </div>
-      <div class="head">
-        <div class="crumbs">
-          <span class="up">C:</span><span class="sep">›</span>
-          <span class="up">Users</span><span class="sep">›</span>
-          <span class="up">you</span><span class="sep">›</span>
-          <span class="up">app</span><span class="sep">›</span>
-          <span class="file">App.tsx</span>
-        </div>
-        <div class="seg"><button class="on">Source</button></div>
-        <div class="dots">⋯</div>
-      </div>
-      <div class="body">
-        <div class="editor">
-          <div class="gutter">1
+      <div class="main">
+        <aside class="rail" data-active="src/App.tsx">
+          <div class="rail-head">
+            <span class="rail-title">app</span>
+            <span class="rail-actions">⟳ ‹</span>
+          </div>
+          <div class="rail-body"></div>
+        </aside>
+        <section class="pane">
+          <div class="head">
+            <div class="crumbs">
+              <span class="up">C:</span><span class="sep">›</span>
+              <span class="up">Users</span><span class="sep">›</span>
+              <span class="up">you</span><span class="sep">›</span>
+              <span class="up">app</span><span class="sep">›</span>
+              <span class="file">src</span><span class="sep">›</span>
+              <span class="file">App.tsx</span>
+            </div>
+            <div class="seg"><button class="on">Source</button></div>
+            <div class="dots">⋯</div>
+          </div>
+          <div class="body">
+            <div class="editor">
+              <div class="gutter">1
 2
 3
 4
@@ -306,14 +427,8 @@
 14
 15
 16
-17
-18
-19
-20
-21
-22
-23</div>
-          <div class="code"><span class="com">/**
+17</div>
+              <div class="code"><span class="com">/**
  * The root component.
  */</span>
 <span class="kw">import</span> { StatusBar } <span class="kw">from</span> <span class="str">'expo-status-bar'</span>;
@@ -331,11 +446,14 @@
     &lt;/<span class="fn">Provider</span>&gt;
   );
 }</div>
-        </div>
+            </div>
+          </div>
+          <div class="status"><span class="dot">●</span> Unsaved changes…</div>
+        </section>
       </div>
-      <div class="status"><span class="dot">●</span> Unsaved changes…</div>
     </div>
-    <!-- 4: markdown preview -->
+
+    <!-- 5: markdown preview -->
     <div class="shot" id="markdown" role="img" aria-label="Markdown preview">
       <div class="tabs">
         <div class="tab">Open file</div>
@@ -343,44 +461,135 @@
         <div class="tab">workouts.csv <span class="x">×</span></div>
         <div class="plus">+</div>
       </div>
-      <div class="head">
-        <div class="crumbs">
-          <span class="up">C:</span><span class="sep">›</span>
-          <span class="up">Users</span><span class="sep">›</span>
-          <span class="up">you</span><span class="sep">›</span>
-          <span class="up">Projects</span><span class="sep">›</span>
-          <span class="up">app</span><span class="sep">›</span>
-          <span class="file">notes.md</span>
-        </div>
-        <div class="seg"><button class="on">Preview</button><button>Source</button></div>
-        <div class="dots">⋯</div>
+      <div class="main">
+        <aside class="rail" data-active="notes.md">
+          <div class="rail-head">
+            <span class="rail-title">app</span>
+            <span class="rail-actions">⟳ ‹</span>
+          </div>
+          <div class="rail-body"></div>
+        </aside>
+        <section class="pane">
+          <div class="head">
+            <div class="crumbs">
+              <span class="up">C:</span><span class="sep">›</span>
+              <span class="up">Users</span><span class="sep">›</span>
+              <span class="up">you</span><span class="sep">›</span>
+              <span class="up">Projects</span><span class="sep">›</span>
+              <span class="up">app</span><span class="sep">›</span>
+              <span class="file">notes.md</span>
+            </div>
+            <div class="seg"><button class="on">Preview</button><button>Source</button></div>
+            <div class="dots">⋯</div>
+          </div>
+          <div class="body">
+            <div class="md">
+              <h1>Release checklist</h1>
+              <p>Sample file for trying the editor's Markdown preview.</p>
+              <h2>Steps</h2>
+              <ol>
+                <li>Bump <code>version</code> in <code>package.json</code>.</li>
+                <li>Add a <code>CHANGELOG.md</code> entry.</li>
+                <li>Push a <code>v&lt;version&gt;</code> tag.</li>
+              </ol>
+              <h2>Commands</h2>
+<pre>git tag -a v0.2.0 -m "v0.2.0"
+git push origin v0.2.0</pre>
+              <h2>Notes</h2>
+              <table>
+                <thead><tr><th>Step</th><th>Owner</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td>Tests</td><td>CI</td><td>passing</td></tr>
+                  <tr><td>Provenance</td><td>GitHub Actions</td><td>attached</td></tr>
+                </tbody>
+              </table>
+              <p>Links work too: <a href="#">the repository</a>.</p>
+              <blockquote>A blockquote, because Markdown should look like Markdown.</blockquote>
+            </div>
+          </div>
+          <div class="status"><span class="dot">●</span> Autosaved 18:42:10</div>
+        </section>
       </div>
-      <div class="body">
-        <div class="md">
-          <h1>Release checklist</h1>
-          <p>Sample file for trying the editor's Markdown preview.</p>
-          <h2>Steps</h2>
-          <ol>
-            <li>Bump <code>version</code> in <code>package.json</code>.</li>
-            <li>Add a <code>CHANGELOG.md</code> entry.</li>
-            <li>Push a <code>v&lt;version&gt;</code> tag.</li>
-          </ol>
-          <h2>Commands</h2>
-<pre>git tag -a v0.1.4 -m "v0.1.4"
-git push origin v0.1.4</pre>
-          <h2>Notes</h2>
-          <table>
-            <thead><tr><th>Step</th><th>Owner</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td>Tests</td><td>CI</td><td>passing</td></tr>
-              <tr><td>Provenance</td><td>GitHub Actions</td><td>attached</td></tr>
-            </tbody>
-          </table>
-          <p>Links work too: <a href="#">the repository</a>.</p>
-          <blockquote>A blockquote, because Markdown should look like Markdown.</blockquote>
-        </div>
-      </div>
-      <div class="status"><span class="dot">●</span> Autosaved 18:42:10</div>
     </div>
+
+    <script>
+      // One tree for every shot, with per-shot open folders and the active file.
+      const tree = [
+        { name: "docs", dir: true },
+        { name: "src", dir: true, open: true },
+        { name: "components", dir: true, depth: 1, open: true },
+        { name: "button.tsx", depth: 2 },
+        { name: "file-card.tsx", depth: 2 },
+        { name: "App.tsx", path: "src/App.tsx", depth: 1 },
+        { name: "gui.tsx", path: "src/gui.tsx", depth: 1 },
+        { name: "tree.ts", path: "src/tree.ts", depth: 1 },
+        { name: ".env", ignored: true },
+        { name: "AGENTS.md" },
+        { name: "package.json" },
+        { name: "notes.md" },
+        { name: "workouts.csv" },
+      ];
+
+      const row = (item, active) => {
+        const depth = (item.depth || 0) * 14;
+        const path = item.path || item.name;
+        const classes = [
+          "row",
+          item.dir ? "dir" : "file",
+          item.ignored ? "ignored" : "",
+          path === active ? "active" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const chev = item.dir ? (item.open ? "▾" : "▸") : "";
+        const icon = item.dir ? "📁" : "📄";
+        return (
+          "<div class=\"" + classes + "\" style=\"padding-left:" + (6 + depth) + "px\">" +
+          "<span class=\"chev\">" + chev + "</span>" +
+          "<span class=\"ficon\">" + icon + "</span>" +
+          "<span class=\"name\">" + item.name + "</span>" +
+          "</div>"
+        );
+      };
+
+      for (const rail of document.querySelectorAll(".rail")) {
+        const active = rail.dataset.active || "";
+        const query = rail.dataset.filter || "";
+        const results = (rail.dataset.results || "")
+          .split(",")
+          .filter(Boolean)
+          .map((entry) => entry.split(":"));
+        let html =
+          "<div class=\"filter\">⌕ " +
+          (query ? "<span class=\"q\">" + query + "</span>" : "Filter files") +
+          "</div>";
+
+        if (query) {
+          html += "<div class=\"tree\">";
+          html += results
+            .map(([name, folder], index) => {
+              const classes = ["row", "file", index === 0 ? "active" : ""]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                "<div class=\"" + classes + "\">" +
+                "<span class=\"chev\"></span>" +
+                "<span class=\"ficon\">📄</span>" +
+                "<span class=\"name\">" + name + "</span>" +
+                "<span class=\"meta\">" + folder + "</span>" +
+                "</div>"
+              );
+            })
+            .join("");
+          html += "</div>";
+        } else {
+          html += "<div class=\"tree\">";
+          html += tree.map((item) => row(item, active)).join("");
+          html += "</div>";
+        }
+
+        rail.querySelector(".rail-body").innerHTML = html;
+      }
+    </script>
   </body>
 </html>

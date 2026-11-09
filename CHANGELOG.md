@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- README previews now show the workspace rail and quick open. The demo gained a
+  quick-open frame, and `docs/preview.html` renders the tree so the screenshots
+  can be regenerated.
+
 ## 0.2.0
 
 - **Workspace tree** in a collapsible sidebar, beside every file tab. It reads
