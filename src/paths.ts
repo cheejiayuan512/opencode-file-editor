@@ -18,11 +18,17 @@ export function canonicalPath(path: string, base: string) {
   if (!value) return "";
   if (isAbsolutePath(value)) return value;
 
-  const root = (base || "").replace(/\\/g, "/").replace(/\/+$/, "");
+  const raw = (base || "").replace(/\\/g, "/");
+  // A root of "/" survives the trailing-slash trim, or it would read as no base.
+  const root = raw.replace(/\/+$/, "") || (raw.startsWith("/") ? "/" : "");
   // A stubbed Node builtin renders as "[inert module …]"; never treat it as a
   // folder. Falling back to the relative value keeps main's resolver in charge.
   if (!root || root.includes("[inert module")) return value;
 
+  // A POSIX root starts with "/", and splitting drops that empty segment. Without
+  // this flag "/Users/me/app" + "a.ts" came back as the relative "Users/me/app/a.ts",
+  // which the main process then resolved against the base a second time.
+  const rooted = root.startsWith("/");
   const parts: string[] = [];
   for (const part of `${root}/${value}`.split("/")) {
     if (!part || part === ".") continue;
@@ -34,7 +40,7 @@ export function canonicalPath(path: string, base: string) {
     }
     parts.push(part);
   }
-  return parts.join("/");
+  return `${rooted ? "/" : ""}${parts.join("/")}`;
 }
 
 /** The workspace-relative form the host expects for a tab's `file`. */

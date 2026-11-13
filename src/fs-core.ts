@@ -101,6 +101,30 @@ export async function readTextFile(path: string): Promise<ReadResult> {
 }
 
 /**
+ * Sniffs a file's first block for text. A path that cannot be opened is not text:
+ * this answer feeds a click on a file that may have been deleted, so it must never
+ * throw out of the Ipc handler.
+ */
+export async function isTextFile(path: string): Promise<boolean> {
+  let handle
+  try {
+    handle = await open(path, "r")
+  } catch {
+    return false
+  }
+
+  try {
+    const buffer = Buffer.alloc(8192)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    return looksLikeText(buffer.subarray(0, bytesRead))
+  } catch {
+    return false
+  } finally {
+    await handle.close().catch(() => undefined)
+  }
+}
+
+/**
  * Writes through a temporary file in the same directory, so a crash or a full
  * disk leaves the original intact instead of a half-written file.
  *

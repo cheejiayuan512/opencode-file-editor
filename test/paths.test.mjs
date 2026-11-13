@@ -47,6 +47,34 @@ test("canonicalPath ignores a stubbed Node module rendered as a base", () => {
   assert.equal(value.includes("[inert module"), false);
 });
 
+test("canonicalPath keeps the leading slash of a POSIX workspace root", () => {
+  // Regression: the split dropped the root's first empty segment, so the rail's
+  // relative click on macOS produced "Users/me/app/a.ts". The main process then
+  // resolved that relative path against the base again, which failed to load.
+  const base = "/Users/tim/Rep";
+  assert.equal(
+    canonicalPath("src/App.tsx", base),
+    "/Users/tim/Rep/src/App.tsx",
+  );
+  assert.equal(
+    canonicalPath("./a/b.ts", "/Users/tim/Rep/"),
+    "/Users/tim/Rep/a/b.ts",
+  );
+  assert.equal(
+    canonicalPath("../other/x.ts", base),
+    "/Users/tim/other/x.ts",
+  );
+  assert.equal(canonicalPath("src/App.tsx", "/"), "/src/App.tsx");
+  assert.equal(canonicalPath("../../../../etc/hosts", "/home/tim"), "/etc/hosts");
+});
+
+test("a POSIX path round-trips back to the workspace-relative form", () => {
+  const base = "/Users/tim/My Project";
+  const absolute = canonicalPath("docs/read me.md", base);
+  assert.equal(absolute, "/Users/tim/My Project/docs/read me.md");
+  assert.equal(relativeTo(base, absolute), "docs/read me.md");
+});
+
 test("isAbsolutePath recognises every absolute form", () => {
   assert.equal(isAbsolutePath("C:/x"), true);
   assert.equal(isAbsolutePath("C:\\x"), true);

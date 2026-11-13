@@ -1,4 +1,4 @@
-import { open, readdir, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import {
   For,
@@ -28,7 +28,7 @@ import {
   type UiMenuEntry,
 } from "@opencode/plugin/gui";
 import {
-  looksLikeText,
+  isTextFile,
   readTextFile,
   resolvePath,
   writeTextFile,
@@ -1971,7 +1971,7 @@ export default Plugin.define({
     },
   },
   setup(ctx) {
-    console.log("[file-editor] gui v29");
+    console.log("[file-editor] gui v30");
     const fs = ctx.main(Fs);
 
     ctx.add(Panel, {
@@ -2242,16 +2242,8 @@ export default Plugin.define({
           return false;
         }
       },
-      isText: async ({ path, base }) => {
-        const handle = await open(resolvePath(path, base), "r");
-        try {
-          const buffer = Buffer.alloc(8192);
-          const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-          return looksLikeText(buffer.subarray(0, bytesRead));
-        } finally {
-          await handle.close();
-        }
-      },
+      isText: async ({ path, base }) =>
+        isTextFile(resolvePath(path, base)),
     });
   },
 });

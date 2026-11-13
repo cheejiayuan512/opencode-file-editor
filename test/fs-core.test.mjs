@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   MAX_BYTES,
+  isTextFile,
   looksLikeText,
   readTextFile,
   writeTextFile,
@@ -102,6 +103,21 @@ test("looksLikeText sniffs the first block", () => {
   assert.equal(looksLikeText(Buffer.from("hello\n")), true);
   assert.equal(looksLikeText(Buffer.from([0x61, 0x00])), false);
   assert.equal(looksLikeText(Buffer.from([0x01, 0x02])), false);
+});
+
+test("isTextFile answers false instead of throwing", async () => {
+  const text = join(dir, "sniff.txt");
+  await writeFile(text, "hello\n");
+  assert.equal(await isTextFile(text), true);
+
+  const binary = join(dir, "sniff.bin");
+  await writeFile(binary, Buffer.from([0x61, 0x00, 0x62]));
+  assert.equal(await isTextFile(binary), false);
+
+  // A rail click on a file that has since been deleted must not throw out of the
+  // Ipc handler; that was the crash path when the path itself was wrong.
+  assert.equal(await isTextFile(join(dir, "does-not-exist.txt")), false);
+  assert.equal(await isTextFile(join(dir, "no-such-folder", "x.txt")), false);
 });
 
 test("expected null creates a file", async () => {

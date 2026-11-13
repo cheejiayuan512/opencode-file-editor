@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.2
+
+- **Fixed: clicking a file did nothing on macOS and Linux.** Joining a
+  workspace-relative path onto a POSIX root dropped the leading `/`, so the tab
+  was keyed by `Users/me/app/a.ts` instead of `/Users/me/app/a.ts`. The main
+  process then resolved that relative path against the base a second time and
+  the read failed. Windows paths (`C:/…`) never lost a slash, which is why it
+  only showed up off Windows.
+- Opening a path that cannot be read (deleted between listing and clicking, or a
+  folder) now reports "not a text file" instead of throwing out of the Ipc
+  handler.
+
 ## 0.2.1
 
 - README previews now show the workspace rail and quick open. The demo gained a
