@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { BASES, RELATIVES } from "./fixtures/paths.mjs";
 
 const source = readFileSync("src/gui.tsx", "utf8");
 
@@ -96,4 +97,39 @@ test("the + menu shows the panel instead of toggling the region closed", () => {
 
 test("the contract id carries a version suffix", () => {
   assert.match(source, /id: "file-editor\.fs\.v\d+"/);
+});
+
+test("the shared path fixtures cover both path families", () => {
+  // 0.2.1 shipped a POSIX-only bug because every base in the suite was "C:/…".
+  // Keeping both families in the fixture is what makes the matrix meaningful.
+  assert.ok(
+    BASES.some((entry) => entry.base.startsWith("/")),
+    "test/fixtures/paths.mjs has no POSIX base",
+  );
+  assert.ok(
+    BASES.some((entry) => /^[A-Za-z]:/.test(entry.base)),
+    "test/fixtures/paths.mjs has no Windows base",
+  );
+  assert.ok(
+    BASES.some((entry) => /^[A-Za-z]:\\/.test(entry.base)),
+    "test/fixtures/paths.mjs has no backslash base",
+  );
+  assert.ok(RELATIVES.length >= 5, "expected the relative forms to stay covered");
+});
+
+test("path tests take their bases from the fixture, not a literal", () => {
+  // The literal this replaced: a base set to "C:\\Users\\JIAYUAN\\…". One machine's
+  // layout became the only layout the suite ever exercised.
+  const files = readdirSync("test").filter((name) => name.endsWith(".test.mjs"));
+  for (const name of files) {
+    const text = readFileSync(`test/${name}`, "utf8");
+    const literal = /const\s+base\s*=\s*["'`](?:[A-Za-z]:[\\/]|\/)/.exec(text);
+    assert.equal(
+      literal?.[0],
+      undefined,
+      `test/${name} hardcodes a base (${literal?.[0]}). Add it to ` +
+        "test/fixtures/paths.mjs and loop over BASES instead, so every path " +
+        "family is exercised.",
+    );
+  }
 });

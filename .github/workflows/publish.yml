@@ -26,7 +26,27 @@ permissions:
   contents: write
 
 jobs:
+  # The tag is only worth publishing if the suite passes where users run it. The
+  # publish job used to gate on one Ubuntu run, so a Windows-only regression
+  # still reached npm.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   publish:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -33,8 +33,9 @@ export function canonicalPath(path: string, base: string) {
   for (const part of `${root}/${value}`.split("/")) {
     if (!part || part === ".") continue;
     if (part === "..") {
-      // Do not walk above the drive or the filesystem root.
-      if (parts.length > 0 && !/^[a-zA-Z]:$/.test(parts[parts.length - 1]))
+      // Do not walk above the drive, the filesystem root, or the home folder.
+      const top = parts[parts.length - 1];
+      if (top !== undefined && top !== "~" && !/^[a-zA-Z]:$/.test(top))
         parts.pop();
       continue;
     }

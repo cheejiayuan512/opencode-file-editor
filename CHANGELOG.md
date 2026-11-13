@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4
+
+- **Fixed: a `~` base could lose its meaning.** Walking up far enough through
+  `..` popped the home marker, leaving a relative path that the main process then
+  resolved somewhere else. `..` now stops at the drive, the filesystem root and
+  the home folder.
+- **Tests run against Windows, macOS and Linux path fixtures**, instead of one
+  hand-written Windows base. `test/architecture.test.mjs` fails a test that
+  hardcodes a base.
+- **CI runs the suite on Ubuntu, Windows and macOS**, and the publish job now
+  waits for that matrix, so a one-platform regression cannot reach npm.
+
 ## 0.2.3
 
 - **Fixed: breadcrumb clicks on macOS and Linux opened the wrong folder.** The

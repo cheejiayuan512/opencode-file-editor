@@ -82,6 +82,11 @@ a broken build once.
    `verify:live` compare it against what the app is serving.
 6. **Every element ref signal needs its `ref={set…}`.** An unattached ref is a
    silent no-op.
+7. **Path tests loop over `test/fixtures/paths.mjs`.** One hand-written base
+   (`const base = "C:\\Users\\…"`) made every test Windows-only, so a dropped
+   leading `/` in 0.2.1 broke clicking a file on macOS and nobody saw it. Add
+   the base to `BASES` and let the matrix exercise it; `test/architecture.test.mjs`
+   fails if a test file hardcodes one.
 
 ## Behaviour worth preserving
 
