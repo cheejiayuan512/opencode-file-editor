@@ -11,10 +11,15 @@ export function breadcrumbs(path: string) {
 
 /** Breadcrumb segments paired with the directory each one opens. */
 export function crumbTrail(path: string) {
+  const normalized = path.replace(/\\/g, "/");
+  // A POSIX path's first segment must keep the root, or a click on it resolves
+  // against the home directory instead of the filesystem. "C:" already carries
+  // its own root.
+  const rooted = normalized.startsWith("/");
   const trail: { name: string; path: string }[] = [];
   let acc = "";
-  for (const part of breadcrumbs(path)) {
-    acc = acc ? `${acc}/${part}` : part;
+  for (const part of breadcrumbs(normalized)) {
+    acc = acc ? `${acc}/${part}` : rooted ? `/${part}` : part;
     trail.push({ name: part, path: acc });
   }
   return trail;

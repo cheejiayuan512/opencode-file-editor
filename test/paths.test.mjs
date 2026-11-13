@@ -83,15 +83,26 @@ test("isAbsolutePath recognises every absolute form", () => {
   assert.equal(isAbsolutePath("x/y"), false);
 });
 
-test("relativeTo strips the workspace prefix case-insensitively", () => {
+test("relativeTo strips the prefix, ignoring case only for a drive letter", () => {
   assert.equal(
     relativeTo(base, "C:/Users/JIAYUAN/CursorProjects/Rep/src/App.tsx"),
     "src/App.tsx",
   );
+  // Windows sources differ on the drive letter's case; nothing else.
   assert.equal(
-    relativeTo(base, "c:/users/jiayuan/cursorprojects/rep/a.ts"),
+    relativeTo(base, "c:/Users/JIAYUAN/CursorProjects/Rep/a.ts"),
     "a.ts",
   );
+});
+
+test("relativeTo stays case-sensitive on a POSIX workspace", () => {
+  // Regression: the whole path was lowercased, so on a case-sensitive
+  // filesystem a sibling that differs in case was treated as inside.
+  assert.equal(
+    relativeTo("/home/tim/Rep", "/home/tim/rep/a.ts"),
+    "/home/tim/rep/a.ts",
+  );
+  assert.equal(relativeTo("/home/tim/Rep", "/home/tim/Rep/a.ts"), "a.ts");
 });
 
 test("relativeTo keeps paths outside the workspace", () => {

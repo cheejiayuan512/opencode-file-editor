@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.3
+
+- **Fixed: breadcrumb clicks on macOS and Linux opened the wrong folder.** The
+  segments came back without the leading `/`, so clicking one in the Browse tab
+  or the editor header resolved against the home directory. "C:" already carries
+  its own root, which is why Windows was unaffected.
+- **Fixed: a workspace-relative check ignored case on Linux.** `relativeTo`
+  lowercased both sides, so `/home/me/Rep` matched `/home/me/rep/a.ts` and a file
+  outside the workspace was presented as if it were inside. Only a Windows drive
+  letter is now compared case-insensitively.
+
 ## 0.2.2
 
 - **Fixed: clicking a file did nothing on macOS and Linux.** Joining a

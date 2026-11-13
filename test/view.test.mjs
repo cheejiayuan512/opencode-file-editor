@@ -38,6 +38,22 @@ test("crumbTrail normalizes backslashes", () => {
   ]);
 });
 
+test("crumbTrail keeps the root so a crumb resolves on POSIX", () => {
+  // Regression: the segments came back relative ("Users/tim"), so clicking one
+  // in the browser resolved it against the home directory instead.
+  assert.deepEqual(crumbTrail("/Users/tim/Rep/a.ts"), [
+    { name: "Users", path: "/Users" },
+    { name: "tim", path: "/Users/tim" },
+    { name: "Rep", path: "/Users/tim/Rep" },
+    { name: "a.ts", path: "/Users/tim/Rep/a.ts" },
+  ]);
+  assert.deepEqual(crumbTrail("/etc/"), [{ name: "etc", path: "/etc" }]);
+  assert.deepEqual(crumbTrail("src/a.ts"), [
+    { name: "src", path: "src" },
+    { name: "a.ts", path: "src/a.ts" },
+  ]);
+});
+
 test("table paths and delimiters", () => {
   assert.equal(isTablePath("a.csv"), true);
   assert.equal(isTablePath("a.TSV"), true);

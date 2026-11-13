@@ -1971,7 +1971,7 @@ export default Plugin.define({
     },
   },
   setup(ctx) {
-    console.log("[file-editor] gui v30");
+    console.log("[file-editor] gui v31");
     const fs = ctx.main(Fs);
 
     ctx.add(Panel, {

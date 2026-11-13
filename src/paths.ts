@@ -49,8 +49,14 @@ export function relativeTo(base: string, path: string) {
   const norm = (value: string) => value.replace(/\\/g, "/").replace(/\/+$/, "");
   const root = norm(base);
   const target = norm(path);
+  // Only a Windows drive letter differs in case between sources. Folding the
+  // whole path made "/home/tim/Rep" match "/home/tim/rep", so a file outside the
+  // workspace on a case-sensitive filesystem looked like it was inside.
+  const fold = (value: string) =>
+    value.length > 1 && value[1] === ":"
+      ? `${value[0]!.toLowerCase()}${value.slice(1)}`
+      : value;
   const prefix = `${root}/`;
-  if (target.toLowerCase().startsWith(prefix.toLowerCase()))
-    return target.slice(prefix.length);
+  if (fold(target).startsWith(fold(prefix))) return target.slice(prefix.length);
   return path;
 }
