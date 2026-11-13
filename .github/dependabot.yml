@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # The host package is the real external risk: a new @opencode/plugin can change
+  # the panel, Ipc or file APIs this plugin builds on.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

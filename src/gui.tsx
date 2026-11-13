@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import {
+  ErrorBoundary,
   For,
   Show,
   createEffect,
@@ -1579,7 +1580,7 @@ function TreeRail(props: {
   const tree = createMemo(() =>
     flattenTree(
       (path) =>
-        props.file.tree.list(path).map((node) => ({
+        (props.file.tree.list(path) ?? []).map((node) => ({
           name: node.name,
           path: node.path,
           dir: node.type === "directory",
@@ -1971,7 +1972,7 @@ export default Plugin.define({
     },
   },
   setup(ctx) {
-    console.log("[file-editor] gui v32");
+    console.log("[file-editor] gui v33");
     const fs = ctx.main(Fs);
 
     ctx.add(Panel, {
@@ -2001,24 +2002,31 @@ export default Plugin.define({
           },
         ];
 
-        for (const id of input.open) {
-          if (!id.startsWith("file:")) continue;
-          const path = pathFromId(id, input.session.directory);
-          const dirty = buffers.get(path)?.dirty ?? false;
-          tabs.push({
-            id,
-            title: dirty ? `${basenameOf(path)} ●` : basenameOf(path),
-            file: relativeTo(input.session.directory, path),
-            closable: "compact",
-          });
-        }
+        try {
+          for (const id of input.open) {
+            if (!id.startsWith("file:")) continue;
+            const path = pathFromId(id, input.session.directory);
+            const dirty = buffers.get(path)?.dirty ?? false;
+            tabs.push({
+              id,
+              title: dirty ? `${basenameOf(path)} ●` : basenameOf(path),
+              file: relativeTo(input.session.directory, path),
+              closable: "compact",
+            });
+          }
 
-        if (input.open.includes(BROWSER)) {
-          tabs.push({
-            id: BROWSER,
-            title: basenameOf(browsePath()) || "Browse",
-            closable: "compact",
-          });
+          if (input.open.includes(BROWSER)) {
+            tabs.push({
+              id: BROWSER,
+              title: basenameOf(browsePath()) || "Browse",
+              closable: "compact",
+            });
+          }
+        } catch (error) {
+          // One unreadable id from stored state must not take the strip with it;
+          // the panel would stop rendering and the app would look hung.
+          console.error("[file-editor] could not list tabs", error);
+          return [tabs[0]!];
         }
 
         return tabs;
@@ -2036,75 +2044,104 @@ export default Plugin.define({
           ctx.layout.open(tabKey(absolute), props.session, { tab: "select" });
         };
 
+        // A render error must stay inside the panel. Without a boundary it
+        // reaches the host and takes the window with it, which is what a crash
+        // report looks like from the outside: no message, nothing to send.
         return (
-          <Workspace
-            ui={ctx.ui}
-            panel={panel}
-            file={props.screen.file}
-            active={active}
-            open={openFile}
-          >
-            {props.tab.id === BROWSER ? (
-              <Browser
-                fs={fs}
-                ui={ctx.ui}
-                start={() => browsePath() || props.session.directory}
-                open={openFile}
-              />
-            ) : (
-              <Editor
-                fs={fs}
-                base={() => props.session.directory}
-                path={pathFromId(props.tab.id, props.session.directory)}
-                open={openFile}
-                browseFolder={(target) => {
-                  setBrowsePath(target);
-                  ctx.layout.open(keyFor(BROWSER), props.session, {
-                    tab: "select",
-                  });
+          <ErrorBoundary
+            fallback={(error, reset) => (
+              <div
+                role="alert"
+                style={{
+                  display: "flex",
+                  "flex-direction": "column",
+                  gap: "8px",
+                  padding: "14px",
+                  "font-size": "12px",
+                  "overflow-wrap": "anywhere",
                 }}
-                openSettings={() =>
-                  ctx.dialogs.open((dialog) => (
-                    <ctx.ui.Dialog
-                      title="Editor settings"
-                      description="Applies to every open file."
-                      footer={
-                        <ctx.ui.Button onClick={() => dialog.close()}>
-                          Done
-                        </ctx.ui.Button>
-                      }
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          "flex-direction": "column",
-                          gap: "14px",
-                        }}
-                      >
-                        <ctx.ui.Switch
-                          label="Line numbers"
-                          checked={lineNumbers()}
-                          onChange={setLineNumbers}
-                        />
-                        <ctx.ui.Switch
-                          label="Word wrap"
-                          checked={wordWrap()}
-                          onChange={setWordWrap}
-                        />
-                        <ctx.ui.Switch
-                          label="Auto save"
-                          description="Saves after a pause. Ctrl+S always saves."
-                          checked={autoSave()}
-                          onChange={setAutoSave}
-                        />
-                      </div>
-                    </ctx.ui.Dialog>
-                  ))
-                }
-                ui={ctx.ui}
-              />
+              >
+                <span style={{ "font-weight": "600" }}>
+                  The file editor hit an error.
+                </span>
+                <span style={{ opacity: "0.7", "white-space": "pre-wrap" }}>
+                  {String(error)}
+                </span>
+                <ctx.ui.Button size="small" onClick={() => reset()}>
+                  Try again
+                </ctx.ui.Button>
+              </div>
             )}
-          </Workspace>
+          >
+            <Workspace
+              ui={ctx.ui}
+              panel={panel}
+              file={props.screen.file}
+              active={active}
+              open={openFile}
+            >
+              {props.tab.id === BROWSER ? (
+                <Browser
+                  fs={fs}
+                  ui={ctx.ui}
+                  start={() => browsePath() || props.session.directory}
+                  open={openFile}
+                />
+              ) : (
+                <Editor
+                  fs={fs}
+                  base={() => props.session.directory}
+                  path={pathFromId(props.tab.id, props.session.directory)}
+                  open={openFile}
+                  browseFolder={(target) => {
+                    setBrowsePath(target);
+                    ctx.layout.open(keyFor(BROWSER), props.session, {
+                      tab: "select",
+                    });
+                  }}
+                  openSettings={() =>
+                    ctx.dialogs.open((dialog) => (
+                      <ctx.ui.Dialog
+                        title="Editor settings"
+                        description="Applies to every open file."
+                        footer={
+                          <ctx.ui.Button onClick={() => dialog.close()}>
+                            Done
+                          </ctx.ui.Button>
+                        }
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            "flex-direction": "column",
+                            gap: "14px",
+                          }}
+                        >
+                          <ctx.ui.Switch
+                            label="Line numbers"
+                            checked={lineNumbers()}
+                            onChange={setLineNumbers}
+                          />
+                          <ctx.ui.Switch
+                            label="Word wrap"
+                            checked={wordWrap()}
+                            onChange={setWordWrap}
+                          />
+                          <ctx.ui.Switch
+                            label="Auto save"
+                            description="Saves after a pause. Ctrl+S always saves."
+                            checked={autoSave()}
+                            onChange={setAutoSave}
+                          />
+                        </div>
+                      </ctx.ui.Dialog>
+                    ))
+                  }
+                  ui={ctx.ui}
+                />
+              )}
+            </Workspace>
+          </ErrorBoundary>
         );
       },
     });

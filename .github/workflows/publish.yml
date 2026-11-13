@@ -60,6 +60,13 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+      # A tag that disagrees with package.json publishes nothing and still
+      # creates a release, so the mismatch stays invisible until someone reports
+      # a fix that never shipped.
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node scripts/check-release.mjs "$GITHUB_REF_NAME"
+
       # Retagging or re-running a release must not fail on an existing version.
       - name: Publish if this version is new
         run: |

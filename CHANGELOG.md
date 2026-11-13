@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.5
+
+- **A panel error now stays in the panel.** An error boundary shows what
+  happened and a "Try again" button, instead of the error reaching the host.
+  A tab list that fails to build falls back to the launcher rather than leaving
+  the strip blank. A crash report can now say something.
+- **Releases refuse a tag that disagrees with `package.json`.** Tagging `v0.3.0`
+  on a `0.2.5` package published nothing — that version already existed — and
+  still created the release, so the mismatch was invisible. The tag must now
+  match the version and have a CHANGELOG heading.
+- **Dependabot watches the host and the actions**, and a nightly job runs the
+  suite against the newest published `@opencode/plugin`, which is the one
+  dependency that can break the plugin without a commit here.
+
 ## 0.2.4
 
 - **Fixed: a `~` base could lose its meaning.** Walking up far enough through

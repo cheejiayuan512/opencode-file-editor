@@ -1,0 +1,30 @@
+name: Host API
+
+# The plugin builds on @opencode/plugin, so a host release can break it while
+# this repository is unchanged. Dependabot opens a pull request eventually; this
+# tells us the morning it happens, and it is the only check that runs against the
+# version users are actually installing.
+on:
+  schedule:
+    # 04:17 UTC daily; off the hour so it does not queue with everything else.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  latest-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Install the newest published host
+        run: |
+          npm install --no-save --no-package-lock @opencode/plugin@latest
+          npm ls @opencode/plugin --depth=0 || true
+
+      - run: npm run typecheck
+      - run: npm test
