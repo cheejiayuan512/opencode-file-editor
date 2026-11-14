@@ -70,18 +70,18 @@ export function outdentLines(
   end: number,
   unit: string = INDENT,
 ): EditResult {
-  // A bare caret takes back the indentation immediately before it, which is
-  // what Shift+Tab means at the start of a line.
+  // A bare caret outdents the line it is on, wherever in the indentation it
+  // sits. Removing only what is to the left of the caret left 3 of 4 spaces
+  // behind at column 1, and did nothing at all at column 0.
   if (start === end) {
     const lineStart = text.lastIndexOf("\n", start - 1) + 1;
     const lead = /^[ \t]*/.exec(text.slice(lineStart))?.[0] ?? "";
-    const before = Math.max(0, Math.min(start - lineStart, lead.length));
-    const remove = Math.min(before, unit.length);
+    const remove = Math.min(lead.length, unit === "\t" ? 1 : unit.length);
     if (remove === 0) return { text, start, end };
     return {
       text: text.slice(0, lineStart) + text.slice(lineStart + remove),
-      start: start - remove,
-      end: start - remove,
+      start: Math.max(lineStart, start - remove),
+      end: Math.max(lineStart, start - remove),
     };
   }
 

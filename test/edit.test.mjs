@@ -53,16 +53,29 @@ test("outdent takes back a tab or a partial unit", () => {
   assert.equal(outdentLines("one", 0, 3).text, "one");
 });
 
-test("a caret outdents the line, not the character before it", () => {
+test("a caret outdents the line wherever it sits in the indentation", () => {
   const text = "    value";
   const atEnd = outdentLines(text, 9, 9);
   assert.equal(atEnd.text, "  value");
   assert.equal(atEnd.start, 7);
 
-  // With the caret inside the indentation, only what is to its left moves.
-  const inside = outdentLines(text, 2, 2);
+  // Column 0 outdents too: Shift+Tab at the start of a line is the common case.
+  const atStart = outdentLines(text, 0, 0);
+  assert.equal(atStart.text, "  value");
+  assert.equal(atStart.start, 0);
+
+  // Inside the indentation the whole unit moves, not just the spaces to the
+  // left of the caret, and the caret cannot end up before the line.
+  const inside = outdentLines(text, 1, 1);
   assert.equal(inside.text, "  value");
   assert.equal(inside.start, 0);
+
+  // A line with no indentation is left alone.
+  assert.deepEqual(outdentLines("value", 2, 2), {
+    text: "value",
+    start: 2,
+    end: 2,
+  });
 });
 
 test("lineBlock reports the whole lines a selection covers", () => {

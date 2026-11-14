@@ -53,13 +53,29 @@ test("SQL keywords are case-insensitive, C keywords are not", () => {
   assert.deepEqual(tokenize("SELECT", "c"), [{ text: "SELECT", kind: "plain" }]);
 });
 
-test("a string ends at the newline, a template string does not", () => {
-  const single = tokenize("'broken\nnext", "js");
-  assert.deepEqual(single[0], { text: "'broken", kind: "string" });
-  assert.equal(single[1].kind, "plain");
+test("an unterminated quote on a line stays plain", () => {
+  // JSX prose is full of apostrophes; colouring the rest of the line as a
+  // string was the most visible wrong answer the tokenizer gave.
+  assert.deepEqual(tokenize("<p>don't</p>", "js"), [
+    { text: "<p>don't</p>", kind: "plain" },
+  ]);
+  assert.deepEqual(tokenize("'broken\nnext", "js"), [
+    { text: "'broken\nnext", kind: "plain" },
+  ]);
 
-  const template = tokenize("`a\nb`", "js");
-  assert.deepEqual(template, [{ text: "`a\nb`", kind: "string" }]);
+  // A template string does cross lines, and is closed to the end when it is not.
+  assert.deepEqual(tokenize("`a\nb`", "js"), [{ text: "`a\nb`", kind: "string" }]);
+});
+
+test("Python's triple-quoted docstring is one string", () => {
+  const tokens = tokenize('x = 1\n"""a\nb # not a comment\n"""\ny = 2', "py");
+  const strings = tokens.filter((token) => token.kind === "string");
+  assert.deepEqual(strings, [{ text: '"""a\nb # not a comment\n"""', kind: "string" }]);
+  // The # inside the docstring is not a comment.
+  assert.deepEqual(
+    tokens.filter((token) => token.kind === "comment"),
+    [],
+  );
 });
 
 test("an escaped quote stays inside the string", () => {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   findMatches,
+  matchAt,
   matchIndexAt,
   replaceAll,
   stepMatch,
@@ -76,6 +77,21 @@ test("the caret's match is the one highlighted in the count", () => {
   assert.equal(matchIndexAt(matches, 7), 0);
   assert.equal(matchIndexAt(matches, 12), 1);
   assert.equal(matchIndexAt(matches, 0), 0, "off a match, the first is current");
+});
+
+test("matchAt finds the match the caret is inside or at the end of", () => {
+  const matches = findMatches(text, "beta");
+  // 6..10 is "Beta".
+  assert.deepEqual(matchAt(matches, 6), { start: 6, end: 10 });
+  assert.deepEqual(matchAt(matches, 8), { start: 6, end: 10 }, "inside");
+  assert.deepEqual(matchAt(matches, 10), { start: 6, end: 10 }, "at the end");
+  assert.deepEqual(
+    matchAt(matches, 11),
+    { start: 11, end: 15 },
+    "the next match starts there",
+  );
+  assert.equal(matchAt(matches, 0), undefined, "outside every match");
+  assert.equal(matchAt([], 0), undefined);
 });
 
 test("replace all replaces every match and reports the count", () => {

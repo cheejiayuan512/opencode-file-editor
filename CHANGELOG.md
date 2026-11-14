@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.2
+
+A bug check over the four feature releases, not a new feature.
+
+- **Shift+Tab** did nothing at column 0, and inside the indentation removed only
+  the spaces to the left of the caret (1 of 4 spaces). It now outdents the line
+  by one unit wherever the caret sits in the indentation.
+- `Ctrl/Cmd+/` on a format with no line comment (JSON, CSS, Markdown) still typed
+  a `/` on macOS, which would have corrupted the file. The keystroke is now
+  always taken.
+- **Enter in the find box skipped the match the caret was inside.** Stepping now
+  starts from the match that contains the caret, in both directions.
+- The **Aa** case toggle did not re-count until the next keystroke.
+- An open **diff kept describing the pre-save state** after a save made the disk
+  and the buffer the same text; it now says there is no difference.
+- Highlighting: an unterminated quote is left plain, so an apostrophe in JSX
+  prose no longer colours the rest of the line as a string; and a Python
+  triple-quoted string is one token rather than three.
+- **New file** refreshes the browser listing, which was a snapshot taken when
+  the folder was opened.
+
 ## 0.5.1
 
 - **Fixed:** opening **Find in file…** from the menu while a diff was on screen

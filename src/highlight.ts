@@ -34,6 +34,8 @@ type Spec = {
   block?: readonly [string, string];
   quotes: readonly string[];
   escapes: boolean;
+  /** Triple-quoted strings, as Python's docstrings. */
+  triple?: boolean;
   /** Compare a word lowercased: SQL is case-insensitive, C is not. */
   fold?: boolean;
   keywords: ReadonlySet<string>;
@@ -120,6 +122,7 @@ const SPECS: Record<Language, Spec> = {
     line: "#",
     quotes: ['"', "'"],
     escapes: true,
+    triple: true,
     keywords: PY,
     literals: set("None True False"),
   },
@@ -223,22 +226,30 @@ export function tokenize(text: string, language: Language): Token[] {
     }
 
     if (spec.quotes.includes(char)) {
-      // Backticks may cross lines; the rest stop at the newline, so one stray
-      // apostrophe cannot swallow the file.
-      const multiline = char === "`";
-      let cursor = index + 1;
+      const triple = spec.triple === true && text.startsWith(char.repeat(3), index);
+      const open = triple ? char.repeat(3) : char;
+      // Backticks and triple quotes may cross lines; the rest stop at the
+      // newline, and an unterminated one is left plain — a stray apostrophe in
+      // prose (JSX text, a comment already handled) is not a string.
+      const multiline = triple || char === "`";
+      let cursor = index + open.length;
+      let closed = false;
       while (cursor < text.length) {
-        const next = text[cursor];
-        if (spec.escapes && next === "\\") {
+        if (!triple && spec.escapes && text[cursor] === "\\") {
           cursor += 2;
           continue;
         }
-        if (next === char) {
-          cursor += 1;
+        if (text.startsWith(open, cursor)) {
+          cursor += open.length;
+          closed = true;
           break;
         }
-        if (next === "\n" && !multiline) break;
+        if (text[cursor] === "\n" && !multiline) break;
         cursor += 1;
+      }
+      if (!closed && !multiline) {
+        index += 1;
+        continue;
       }
       emit(Math.min(cursor, text.length), "string");
       continue;

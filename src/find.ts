@@ -16,6 +16,13 @@ export type FindOptions = {
 
 const WORD = /[A-Za-z0-9_]/;
 
+/** The match a caret sits in, or inside at its end, for stepping and replacing. */
+export function matchAt(matches: readonly Match[], position: number) {
+  return matches.find(
+    (match) => position >= match.start && position <= match.end,
+  );
+}
+
 function isWordBoundary(text: string, start: number, end: number) {
   const before = start === 0 ? "" : text[start - 1];
   const after = end >= text.length ? "" : text[end];

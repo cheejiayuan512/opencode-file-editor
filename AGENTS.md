@@ -36,7 +36,7 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 175 assertions with no app running:
+`npm test` builds first, then runs 177 assertions with no app running:
 
 | File | Guards |
 |---|---|
@@ -45,7 +45,7 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 | `diff` | the disk/buffer line diff: insert, delete, replace, empty files, blank lines, trailing newlines, both numbering columns, collapsed runs, and a rewrite past the cell cap |
 | `find` | literal matching, case and whole-word options, non-overlapping order, wraparound stepping, literal replacement (`$&` stays `$&`) |
 | `edit` | indent/outdent/comment: caret vs selection, the line-start guard, blank lines, tab and partial units, comment tokens by extension |
-| `highlight` | the tokenizer round-trips the text byte for byte in every language, keywords are whole words, SQL folds case and C does not, strings and comments stop where they should, and the size caps fall back to plain |
+| `highlight` | the tokenizer round-trips the text byte for byte in every language, keywords are whole words, SQL folds case and C does not, strings and comments stop where they should, an unterminated quote stays plain, and the size caps fall back to plain |
 | `report` | the diagnostics block, the prefilled issue link, a single-line title, and the length cap GitHub accepts |
 | `fs-core` | atomic writes, stale-baseline refusal, BOM/CRLF, size and UTF-8 limits, and file identity (`samePath` by device and inode) |
 | `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |

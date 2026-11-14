@@ -62,7 +62,7 @@ import {
 import { explain, isExternalChange } from "./status";
 import { composeReport, formatReport } from "./report";
 import { MAX_DISPLAY, counts, diffLines, toDisplay, type DiffLine } from "./diff";
-import { findMatches, matchIndexAt, replaceAll, stepMatch } from "./find";
+import { findMatches, matchAt, matchIndexAt, replaceAll, stepMatch } from "./find";
 import {
   commentToken,
   indentLines,
@@ -107,7 +107,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v40";
+const GUI_VERSION = "gui v41";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -304,6 +304,8 @@ function Browser(props: {
           await props.fs.forceWrite({ path: absolute, base: cwd(), text: "" });
           dialog.close();
           props.open(absolute);
+          // The listing is a snapshot; show the new file in it too.
+          void read(cwd());
         } catch (error) {
           setMessage(`Could not create it: ${explain(error)}`);
         }
@@ -844,6 +846,9 @@ function Editor(props: {
       baseline = content;
       setConflict(false);
       persist();
+      // The write made disk and buffer the same text, so a diff on screen now
+      // says "no differences" instead of describing the previous state.
+      if (compare()) setCompare({ rows: [], added: 0, removed: 0 });
       if (version === changed) {
         setDirty(false);
         cancelAutosave();
@@ -1002,12 +1007,18 @@ function Editor(props: {
 
     const field = area();
     const from = field?.selectionStart ?? 0;
-    const to = field?.selectionEnd ?? from;
-    const onMatch = list.some((match) => match.start === from && match.end === to);
-    // Step past the current match, or the next press would do nothing.
+    const current = matchAt(list, from);
+    // Step past the match the caret is in, or inside of, so one press moves one
+    // match in either direction.
     const match = stepMatch(
       list,
-      backwards ? (onMatch ? from : from + 1) : onMatch ? to : from,
+      current
+        ? backwards
+          ? current.start
+          : current.end
+        : backwards
+          ? from + 1
+          : from,
       backwards,
     );
     if (!match) return;
@@ -1024,8 +1035,7 @@ function Editor(props: {
     const field = area();
     const from = field?.selectionStart ?? 0;
     const match =
-      list.find((entry) => entry.start === from) ??
-      list[Math.min(findAt(), list.length - 1)];
+      matchAt(list, from) ?? list[Math.min(findAt(), list.length - 1)];
     applyEdit({
       text: text().slice(0, match.start) + findReplace() + text().slice(match.end),
       start: match.start + findReplace().length,
@@ -1804,7 +1814,12 @@ function Editor(props: {
             <props.ui.Button
               size="small"
               variant={findCase() ? "neutral" : "ghost"}
-              onClick={() => setFindCase((value) => !value)}
+              onClick={() => {
+                setFindCase((value) => !value);
+                // Recompute now: the count and the preview match both depend on
+                // the flag, and waiting for the next keystroke looks broken.
+                changeQuery(findQuery());
+              }}
             >
               Aa
             </props.ui.Button>
@@ -2214,12 +2229,14 @@ function Editor(props: {
                   return;
                 }
                 if (key === "/") {
+                  // Taken whatever happens: on a Mac the keystroke otherwise
+                  // types a "/" into a JSON or CSS file.
+                  event.preventDefault();
                   const token = commentToken(props.path);
                   if (!token) {
                     setStatus("This file type has no line comment.");
                     return;
                   }
-                  event.preventDefault();
                   const field = event.currentTarget;
                   applyEdit(
                     toggleComment(
