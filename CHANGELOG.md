@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- **Fixed:** opening **Find in file…** from the menu while a diff was on screen
+  left the find bar hidden behind it. Find closes the diff now.
+- **Fixed:** the colour layer could break a long word where the textarea does
+  not, so a minified line or a long URL wrapped in two different places. It now
+  wraps exactly as the plain control does.
+
 ## 0.5.0
 
 - **Syntax highlighting** in the source view for the formats that make up most

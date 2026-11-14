@@ -107,7 +107,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v39";
+const GUI_VERSION = "gui v40";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -973,11 +973,9 @@ function Editor(props: {
 
   function openFind() {
     // Find only exists in the source view, so opening it there is the least
-    // surprising thing to do from a preview.
-    if (view() !== "source") {
-      setCompare(null);
-      setView("source");
-    }
+    // surprising thing to do from a preview or a diff.
+    setCompare(null);
+    if (view() !== "source") setView("source");
     setFindOpen(true);
     requestAnimationFrame(() => {
       findInput?.focus();
@@ -2135,7 +2133,9 @@ function Editor(props: {
                       "line-height": "1.65",
                       "tab-size": "2",
                       "white-space": wordWrap() ? "pre-wrap" : "pre",
-                      "overflow-wrap": wordWrap() ? "break-word" : "normal",
+                      // Match the textarea's own wrapping: it breaks at spaces,
+                      // not inside a word, so the layer must not break earlier.
+                      "overflow-wrap": "normal",
                       color: "inherit",
                     }}
                   >
