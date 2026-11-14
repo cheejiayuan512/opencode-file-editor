@@ -72,6 +72,22 @@ import {
   type EditResult,
 } from "./edit";
 import {
+  detectLanguage,
+  highlight,
+  type TokenKind,
+} from "./highlight";
+
+// One palette for the source view. The host may define its own syntax colours;
+// these fallbacks are mid-tone so they read on a light and a dark panel alike.
+const SYNTAX_COLOURS: Record<TokenKind, JSX.CSSProperties | undefined> = {
+  plain: undefined,
+  comment: { opacity: "0.6" },
+  keyword: { color: "var(--color-syntax-keyword, #a15ce8)" },
+  string: { color: "var(--color-syntax-string, #3f9142)" },
+  number: { color: "var(--color-syntax-number, #b0741b)" },
+  literal: { color: "var(--color-syntax-literal, #2b7fd4)" },
+};
+import {
   crumbTrail,
   delimiterFor,
   gutterText,
@@ -91,7 +107,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v38";
+const GUI_VERSION = "gui v39";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -564,7 +580,10 @@ function Editor(props: {
   const [findAt, setFindAt] = createSignal(0);
   // A path that was opened but does not exist: offered as a file to create.
   const [missing, setMissing] = createSignal<string | null>(null);
+  // While an input method composes, the textarea must show its own text.
+  const [composing, setComposing] = createSignal(false);
   let findInput: HTMLInputElement | undefined;
+  let paint: HTMLPreElement | undefined;
   const [canUndo, setCanUndo] = createSignal(false);
   const [canRedo, setCanRedo] = createSignal(false);
   const [view, setView] = createSignal<"source" | "preview" | "table">(
@@ -1170,6 +1189,17 @@ function Editor(props: {
   // A clean buffer is re-read so changes made while the tab was closed show up;
   // a dirty one is restored so switching tabs never costs typing.
   onMount(() => {
+    // When the coloured layer is showing, the textarea's text is invisible and
+    // a normal selection would paint over it. A translucent band keeps both.
+    if (document.getElementById("file-editor-painted-style")) return;
+    const style = document.createElement("style");
+    style.id = "file-editor-painted-style";
+    style.textContent =
+      ".file-editor-painted::selection { background: rgba(110, 160, 255, 0.35); -webkit-text-fill-color: transparent; }";
+    document.head.append(style);
+  });
+
+  onMount(() => {
     if (launcher) return;
     const cached = buffers.get(props.path);
     if (cached?.dirty) {
@@ -1190,6 +1220,12 @@ function Editor(props: {
   });
 
   const primaryView = () => (isTablePath(props.path) ? "table" : "preview");
+  // Highlighting is skipped for a format we cannot colour, a file past the size
+  // cap, and while an IME composes, because the textarea has to show that text.
+  const tokens = createMemo(() => {
+    if (composing() || text() === "") return undefined;
+    return highlight(text(), detectLanguage(props.path));
+  });
   const table = createMemo(() =>
     isTablePath(props.path)
       ? parseTable(text(), delimiterFor(props.path))
@@ -1224,9 +1260,19 @@ function Editor(props: {
     measureTimer = setTimeout(measure, 120);
   }
 
+  function measurePaint() {
+    const field = area();
+    if (!field || !paint) return;
+    paint.style.width = `${field.clientWidth}px`;
+    paint.style.height = `${field.clientHeight}px`;
+  }
+
   function measure() {
     const box = mirror();
     const field = area();
+    // The painted layer has to match the textarea's client box exactly: the same
+    // width wraps at the same place, and the scrollbar is not part of it.
+    measurePaint();
     if (!wordWrap() || !lineNumbers() || !box || !field) {
       setWrappedRows([]);
       return;
@@ -1259,6 +1305,10 @@ function Editor(props: {
     text();
     wordWrap();
     lineNumbers();
+    tokens();
+    // The paint box mounts with the tokens, so size it now rather than waiting
+    // for the debounce: a wrong width means the two layers wrap differently.
+    requestAnimationFrame(measurePaint);
     scheduleMeasure();
   });
 
@@ -2049,13 +2099,74 @@ function Editor(props: {
                 {numbers()}
               </div>
             </Show>
-            <textarea
-              ref={setArea}
-              value={text()}
-              onInput={(event) => edit(event.currentTarget.value)}
-              onScroll={(event) => {
-                if (gutter) gutter.scrollTop = event.currentTarget.scrollTop;
+            <div
+              style={{
+                flex: "1",
+                "min-width": "0",
+                "min-height": "0",
+                position: "relative",
+                display: "flex",
               }}
+            >
+              <Show when={tokens()}>
+                {(list) => (
+                  <pre
+                    ref={(element) => {
+                      paint = element;
+                      // Size it now: the debounce would leave one frame with the
+                      // wrong wrap width.
+                      measurePaint();
+                    }}
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      top: "0",
+                      left: "0",
+                      width: "100%",
+                      height: "100%",
+                      margin: "0",
+                      padding: "10px 12px",
+                      "box-sizing": "border-box",
+                      overflow: "hidden",
+                      "pointer-events": "none",
+                      "font-family":
+                        "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
+                      "font-size": "12.5px",
+                      "line-height": "1.65",
+                      "tab-size": "2",
+                      "white-space": wordWrap() ? "pre-wrap" : "pre",
+                      "overflow-wrap": wordWrap() ? "break-word" : "normal",
+                      color: "inherit",
+                    }}
+                  >
+                    <For each={list()}>
+                      {(token) => (
+                        <span style={SYNTAX_COLOURS[token.kind]}>
+                          {token.text}
+                        </span>
+                      )}
+                    </For>
+                    {/* Keeps the last, empty line as tall as the textarea's. */}
+                    <span>{"\u200b"}</span>
+                  </pre>
+                )}
+              </Show>
+
+              <textarea
+                ref={setArea}
+                value={text()}
+                onInput={(event) => edit(event.currentTarget.value)}
+                onCompositionStart={() => setComposing(true)}
+                onCompositionEnd={() => setComposing(false)}
+                onScroll={(event) => {
+                  const field = event.currentTarget;
+                  if (gutter) gutter.scrollTop = field.scrollTop;
+                  // The painted text is not scrollable, so it follows by hand.
+                  if (paint) {
+                    paint.scrollTop = field.scrollTop;
+                    paint.scrollLeft = field.scrollLeft;
+                  }
+                }}
               onPaste={(event) => {
                 const pasted = event.clipboardData?.getData("text/plain");
                 // An empty paste must never delete a selection (or the whole file).
@@ -2138,16 +2249,28 @@ function Editor(props: {
               }}
               spellcheck={false}
               placeholder="Changes autosave after a pause; Ctrl+S saves now."
+              class={
+                tokens()
+                  ? "file-editor-code file-editor-painted"
+                  : "file-editor-code"
+              }
               style={{
                 flex: "1",
                 "min-width": "0",
                 "min-height": "0",
                 resize: "none",
+                // Above the painted text: the caret and the selection belong to
+                // the textarea, and must not be covered by coloured glyphs.
+                position: "relative",
                 padding: "10px 12px",
                 border: "none",
                 outline: "none",
                 background: "transparent",
                 color: "inherit",
+                // The coloured text is painted underneath. Hiding only the fill
+                // keeps the caret and the selection background, which a
+                // transparent `color` would take with it.
+                "-webkit-text-fill-color": tokens() ? "transparent" : "inherit",
                 "font-family":
                   "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
                 "font-size": "12.5px",
@@ -2157,6 +2280,7 @@ function Editor(props: {
                 "overflow-x": wordWrap() ? "hidden" : "auto",
               }}
             />
+            </div>
             <div
               ref={setMirror}
               aria-hidden="true"

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0
+
+- **Syntax highlighting** in the source view for the formats that make up most
+  of a workspace: JavaScript and TypeScript, JSON, CSS, Python, shell, Ruby, SQL,
+  YAML, TOML, C-family (C, C++, C#, Java, Kotlin, Swift, Dart, PHP), Go, Rust and
+  Lua. Comments, strings, numbers, keywords and literals get colour; everything
+  else stays the theme's text colour. The host's syntax variables are used when
+  it defines them.
+- The colour layer is painted under the textarea rather than replacing it, so
+  undo, autosave, IME composition, selection and the keyboard all still come
+  from the native control. The layer is sized to the textarea's client box, so
+  the scrollbar cannot make the two wrap at different places.
+- **Highlighting turns itself off** instead of guessing: a format with no
+  tokenizer, a file over 80 KB or 12,000 tokens, and while an input method is
+  composing text. The textarea then shows plain text exactly as before.
+- The tokenizer is pure (`src/highlight.ts`) and its test asserts the one thing
+  that must never break: the tokens rejoin to the original text byte for byte,
+  across every supported language.
+
 ## 0.4.2
 
 - **The panel can create files.** Opening a path that does not exist no longer

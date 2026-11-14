@@ -41,6 +41,9 @@ open them to try the panel.</sub>
   Links inside a preview open in another tab.
 - **CSV/TSV table view** with row numbers and zebra rows (RFC 4180 quoted fields).
 - **Line numbers** that follow word wrap, plus wrap and auto-save toggles.
+- **Syntax highlighting** for JavaScript/TypeScript, JSON, CSS, Python, shell,
+  Ruby, SQL, YAML, TOML, the C family, Go, Rust and Lua. Large files and formats
+  without a tokenizer stay plain rather than guessing.
 - **Find and replace** with `Ctrl/Cmd+F`: literal, case toggle, match count,
   wrap-around next/previous, replace one or all.
 - **Tab / Shift+Tab indent**, and `Ctrl/Cmd+/` toggles a line comment.

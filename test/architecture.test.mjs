@@ -12,6 +12,9 @@ const source = readFileSync("src/gui.tsx", "utf8");
 const RENDERER_MODULES = [
   "codes",
   "diff",
+  "edit",
+  "find",
+  "highlight",
   "paths",
   "links",
   "tabs",

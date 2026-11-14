@@ -9,6 +9,7 @@ const entries = [
   "diff",
   "edit",
   "find",
+  "highlight",
   "paths",
   "links",
   "tabs",

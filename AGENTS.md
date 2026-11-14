@@ -36,7 +36,7 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 160 assertions with no app running:
+`npm test` builds first, then runs 175 assertions with no app running:
 
 | File | Guards |
 |---|---|
@@ -45,6 +45,7 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 | `diff` | the disk/buffer line diff: insert, delete, replace, empty files, blank lines, trailing newlines, both numbering columns, collapsed runs, and a rewrite past the cell cap |
 | `find` | literal matching, case and whole-word options, non-overlapping order, wraparound stepping, literal replacement (`$&` stays `$&`) |
 | `edit` | indent/outdent/comment: caret vs selection, the line-start guard, blank lines, tab and partial units, comment tokens by extension |
+| `highlight` | the tokenizer round-trips the text byte for byte in every language, keywords are whole words, SQL folds case and C does not, strings and comments stop where they should, and the size caps fall back to plain |
 | `report` | the diagnostics block, the prefilled issue link, a single-line title, and the length cap GitHub accepts |
 | `fs-core` | atomic writes, stale-baseline refusal, BOM/CRLF, size and UTF-8 limits, and file identity (`samePath` by device and inode) |
 | `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
@@ -132,6 +133,11 @@ a broken build once.
   existing path, **Save as…** asks twice, and both go through `forceWrite` only
   after that check. Save-as marks the buffer clean *before* closing the tab,
   because `onCleanup` flushes a dirty buffer to the old path.
+- Syntax highlighting is a second layer under the textarea, never a replacement
+  for it: undo, IME, autosave, selection and key handling must keep coming from
+  the native control. The layer is sized to `clientWidth`/`clientHeight` by
+  `measurePaint()`, because sizing it to the wrapper makes the scrollbar wrap
+  the two layers at different columns.
 - A failed read or write is logged in the main process (`io()` in `main()`), and
   **Copy diagnostics** / **Report a problem** in the editor menu carry the build
   marker, contract id, platform, file and last status line. A report without
