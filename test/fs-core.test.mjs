@@ -128,6 +128,15 @@ test("expected null creates a file", async () => {
   assert.equal(await readFile(file, "utf8"), "created\n");
 });
 
+test("creating in a missing folder fails instead of pretending", async () => {
+  // The panel offers to create a file the user typed; it must report the real
+  // reason when the folder does not exist, not leave an empty tab behind.
+  await assert.rejects(
+    () => writeTextFile(join(dir, "no-such-folder", "x.txt"), "x", null),
+    (error) => error.code === "ENOENT",
+  );
+});
+
 test("samePath decides by the file, not by the spelling", async () => {
   // Two spellings, one file: exactly the case where keying a buffer by the
   // string gives two tabs and the last save silently wins.

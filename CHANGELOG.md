@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.2
+
+- **The panel can create files.** Opening a path that does not exist no longer
+  ends in "Load failed": it offers **Create file**, and the file browser has a
+  **New file** button that creates one in the folder you are looking at. Creating
+  over an existing file is refused rather than truncating it.
+- **Save as…** writes the buffer to another path and moves the tab with it. An
+  existing target asks for a second click before it is replaced, and naming the
+  current path is just a save. The old tab no longer keeps a pending autosave
+  that would rewrite the file you saved away from.
+- Opening a path now distinguishes "does not exist" from "not text", which is
+  why the old message was wrong in both cases.
+
 ## 0.4.1
 
 - **Find and replace** — `Ctrl/Cmd+F`, or **Find in file…** in the menu. Literal

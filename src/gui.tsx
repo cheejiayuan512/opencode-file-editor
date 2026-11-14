@@ -22,6 +22,7 @@ import {
   Plugin,
   usePanel,
   type Files,
+  type Dialogs,
   type PanelFrame,
   type PanelTab,
   type SessionRef,
@@ -90,7 +91,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v37";
+const GUI_VERSION = "gui v38";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -254,6 +255,7 @@ function Browser(props: {
   ui: Ui;
   start: () => string;
   open: (path: string) => void;
+  dialogs: Dialogs;
 }) {
   const [cwd, setCwd] = createSignal(props.start());
   const [entries, setEntries] = createSignal<readonly Entry[]>([]);
@@ -261,6 +263,71 @@ function Browser(props: {
   const [status, setStatus] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   let seq = 0;
+
+  /** Create an empty file in the folder being browsed and open it. */
+  function newFile() {
+    props.dialogs.open((dialog) => {
+      const [name, setName] = createSignal("");
+      const [message, setMessage] = createSignal("");
+      const create = async () => {
+        const value = name().trim();
+        if (!value) {
+          setMessage("Enter a file name.");
+          return;
+        }
+        try {
+          const absolute = await props.fs.resolve({
+            path: value,
+            base: cwd(),
+          });
+          // Creating over an existing file would truncate it.
+          if (await props.fs.exists({ path: absolute, base: cwd() })) {
+            setMessage("That file already exists. Choose another name.");
+            return;
+          }
+          await props.fs.forceWrite({ path: absolute, base: cwd(), text: "" });
+          dialog.close();
+          props.open(absolute);
+        } catch (error) {
+          setMessage(`Could not create it: ${explain(error)}`);
+        }
+      };
+
+      return (
+        <props.ui.Dialog
+          title="New file"
+          description={`Created in ${cwd() || "the workspace"}.`}
+          footer={
+            <>
+              <props.ui.Button onClick={() => dialog.close()}>
+                Cancel
+              </props.ui.Button>
+              <props.ui.Button
+                variant="contrast"
+                onClick={() => void create()}
+              >
+                Create
+              </props.ui.Button>
+            </>
+          }
+        >
+          <props.ui.TextInput
+            label="File name"
+            value={name()}
+            onInput={setName}
+            placeholder="notes.md"
+            onSubmit={() => void create()}
+            autofocus
+          />
+          <Show when={message()}>
+            <div style={{ "font-size": "11.5px", opacity: "0.7" }}>
+              {message()}
+            </div>
+          </Show>
+        </props.ui.Dialog>
+      );
+    });
+  }
 
   async function read(dir: string) {
     const run = ++seq;
@@ -335,6 +402,12 @@ function Browser(props: {
           )}
         </For>
         <span style={{ flex: "1" }} />
+        <props.ui.IconButton
+          icon="plus"
+          label="New file here"
+          size="small"
+          onClick={newFile}
+        />
         <Show when={busy()}>
           <props.ui.Loader size="small" />
         </Show>
@@ -466,6 +539,9 @@ function Editor(props: {
   openSettings: () => void;
   ui: Ui;
   system: System;
+  dialogs: Dialogs;
+  /** Close this tab, for an action that moved the buffer elsewhere. */
+  discard: () => void;
 }) {
   const launcher = !props.path;
 
@@ -486,6 +562,8 @@ function Editor(props: {
   const [findReplace, setFindReplace] = createSignal("");
   const [findCase, setFindCase] = createSignal(false);
   const [findAt, setFindAt] = createSignal(0);
+  // A path that was opened but does not exist: offered as a file to create.
+  const [missing, setMissing] = createSignal<string | null>(null);
   let findInput: HTMLInputElement | undefined;
   const [canUndo, setCanUndo] = createSignal(false);
   const [canRedo, setCanRedo] = createSignal(false);
@@ -658,10 +736,24 @@ function Editor(props: {
     const seq = ++fileSeq;
     setBusy(true);
     try {
-      if (
-        !isTextPath(target) ||
-        !(await props.fs.isText({ path: target, base }))
-      ) {
+      if (!isTextPath(target)) {
+        if (seq === fileSeq)
+          setStatus("Not a text file — open it through the normal preview.");
+        return;
+      }
+
+      // Distinguish "gone" from "not text": a path the user typed is often a
+      // file that does not exist yet, and offering to create it is the only way
+      // this panel can produce a new file.
+      if (!(await props.fs.exists({ path: target, base }))) {
+        if (seq === fileSeq) {
+          setMissing(target);
+          setStatus("That file does not exist yet.");
+        }
+        return;
+      }
+
+      if (!(await props.fs.isText({ path: target, base }))) {
         if (seq === fileSeq)
           setStatus("Not a text file — open it through the normal preview.");
         return;
@@ -671,6 +763,7 @@ function Editor(props: {
       setText(result.text);
       // A diff of the text we just replaced would be a lie.
       setCompare(null);
+      setMissing(null);
       setPathInput(target);
       baseline = result.text;
       resetHistory(result.text);
@@ -959,6 +1052,121 @@ function Editor(props: {
     });
   }
 
+  /**
+   * Turn a path that does not exist into a file. This is the only way to create
+   * one from the panel; the main process writes it empty and the tab reloads.
+   */
+  async function createMissing() {
+    const target = missing();
+    if (!target) return;
+    setBusy(true);
+    try {
+      await props.fs.forceWrite({
+        path: target,
+        base: props.base(),
+        text: "",
+      });
+      setMissing(null);
+      await load(target, props.base(), true);
+      setStatus(`Created ${relativeTo(props.base(), target)}.`);
+    } catch (error) {
+      setStatus(`Could not create the file: ${explain(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Write this buffer to another path and move the tab with it. */
+  function saveAs() {
+    props.dialogs.open((dialog) => {
+      const [target, setTarget] = createSignal(props.path);
+      const [message, setMessage] = createSignal("");
+      const [confirmed, setConfirmed] = createSignal(false);
+      const write = async () => {
+        const value = target().trim();
+        if (!value) {
+          setMessage("Enter a path.");
+          return;
+        }
+        try {
+          const absolute = await props.fs.resolve({
+            path: value,
+            base: props.base(),
+          });
+
+          // Writing over another file is a real Save As, but it must not happen
+          // because someone typed the wrong name.
+          if (
+            absolute !== props.path &&
+            !confirmed() &&
+            (await props.fs.exists({ path: absolute, base: props.base() }))
+          ) {
+            setMessage("That file already exists. Save again to replace it.");
+            setConfirmed(true);
+            return;
+          }
+
+          await props.fs.forceWrite({
+            path: absolute,
+            base: props.base(),
+            text: text(),
+          });
+          dialog.close();
+
+          // The tab no longer has anything pending for its old path.
+          baseline = text();
+          setDirty(false);
+          setConflict(false);
+          cancelAutosave();
+          bump();
+
+          if (absolute === props.path) {
+            setStatus("Saved.");
+            return;
+          }
+
+          // Open first, then close: the order that leaves the strip populated
+          // if either call fails.
+          props.open(absolute);
+          props.discard();
+          setStatus(`Saved as ${relativeTo(props.base(), absolute)}.`);
+        } catch (error) {
+          setMessage(`Could not write: ${explain(error)}`);
+        }
+      };
+
+      return (
+        <props.ui.Dialog
+          title="Save as"
+          description="Writes this buffer to another file and moves the tab there."
+          footer={
+            <>
+              <props.ui.Button onClick={() => dialog.close()}>
+                Cancel
+              </props.ui.Button>
+              <props.ui.Button variant="contrast" onClick={() => void write()}>
+                Save
+              </props.ui.Button>
+            </>
+          }
+        >
+          <props.ui.TextInput
+            label="New file path"
+            value={target()}
+            onInput={setTarget}
+            onSubmit={() => void write()}
+            autofocus
+          />
+          <Show when={message()}>
+            <div style={{ "font-size": "11.5px", opacity: "0.7" }}>
+              {message()}
+            </div>
+          </Show>
+        </props.ui.Dialog>
+      );
+    });
+  }
+
   // A clean buffer is re-read so changes made while the tab was closed show up;
   // a dirty one is restored so switching tabs never costs typing.
   onMount(() => {
@@ -1079,6 +1287,11 @@ function Editor(props: {
 
   const menuItems = (): UiMenuEntry[] => [
     { label: "Save file", onSelect: () => void save() },
+    {
+      label: "Save as…",
+      disabled: !props.path,
+      onSelect: saveAs,
+    },
     {
       label: "Discard changes",
       disabled: !dirty(),
@@ -1432,6 +1645,48 @@ function Editor(props: {
 
           <props.ui.Menu label="File actions" items={menuItems()} />
         </div>
+
+        <Show when={missing()}>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              "align-items": "center",
+              padding: "8px 10px",
+              "border-bottom":
+                "1px solid color-mix(in srgb, currentColor 20%, transparent)",
+              background: "color-mix(in srgb, currentColor 6%, transparent)",
+              "font-size": "12px",
+            }}
+          >
+            <props.ui.Icon name="file-document" size="small" />
+            <span
+              style={{
+                flex: "1",
+                "min-width": "0",
+                overflow: "hidden",
+                "text-overflow": "ellipsis",
+                "white-space": "nowrap",
+              }}
+            >
+              No file at {relativeTo(props.base(), missing()!)}. Create it?
+            </span>
+            <props.ui.Button
+              size="small"
+              variant="ghost"
+              onClick={() => void createMissing()}
+            >
+              Create file
+            </props.ui.Button>
+            <props.ui.Button
+              size="small"
+              variant="ghost-muted"
+              onClick={() => setMissing(null)}
+            >
+              Dismiss
+            </props.ui.Button>
+          </div>
+        </Show>
 
         <Show when={findOpen() && view() === "source" && !compare()}>
           <div
@@ -2726,6 +2981,7 @@ export default Plugin.define({
                 <Browser
                   fs={fs}
                   ui={ctx.ui}
+                  dialogs={ctx.dialogs}
                   start={() => browsePath() || props.session.directory}
                   open={openFile}
                 />
@@ -2735,6 +2991,7 @@ export default Plugin.define({
                   base={() => props.session.directory}
                   path={pathFromId(props.tab.id, props.session.directory)}
                   open={openFile}
+                  discard={() => ctx.layout.close(props.tab.id, props.session)}
                   browseFolder={(target) => {
                     setBrowsePath(target);
                     ctx.layout.open(keyFor(BROWSER), props.session, {
@@ -2781,6 +3038,7 @@ export default Plugin.define({
                   }
                   ui={ctx.ui}
                   system={ctx.system}
+                  dialogs={ctx.dialogs}
                 />
               )}
             </Workspace>

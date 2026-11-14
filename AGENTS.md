@@ -36,7 +36,7 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 159 assertions with no app running:
+`npm test` builds first, then runs 160 assertions with no app running:
 
 | File | Guards |
 |---|---|
@@ -128,6 +128,10 @@ a broken build once.
   indent or outdent a selection, and never let focus leave the textarea. The
   same goes for `Ctrl/Cmd+F` (open find) and `Ctrl/Cmd+/` (comment), which are
   the three keys a code editor is expected to own.
+- Creating and saving-as never truncate by surprise: **New file** refuses an
+  existing path, **Save as…** asks twice, and both go through `forceWrite` only
+  after that check. Save-as marks the buffer clean *before* closing the tab,
+  because `onCleanup` flushes a dirty buffer to the old path.
 - A failed read or write is logged in the main process (`io()` in `main()`), and
   **Copy diagnostics** / **Report a problem** in the editor menu carry the build
   marker, contract id, platform, file and last status line. A report without

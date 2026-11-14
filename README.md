@@ -44,6 +44,8 @@ open them to try the panel.</sub>
 - **Find and replace** with `Ctrl/Cmd+F`: literal, case toggle, match count,
   wrap-around next/previous, replace one or all.
 - **Tab / Shift+Tab indent**, and `Ctrl/Cmd+/` toggles a line comment.
+- **New file** in the browser, or **Create file** when a path you open does not
+  exist yet. **Save as…** moves the tab to a new path.
 - **Folder browser** — click any breadcrumb segment to browse, with folders and
   files colour-coded. One Browse tab, no tab per folder.
 - **Workspace tree** — the session workspace in a collapsible sidebar, loaded one
