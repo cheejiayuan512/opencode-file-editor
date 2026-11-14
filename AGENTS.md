@@ -36,12 +36,13 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 122 assertions with no app running:
+`npm test` builds first, then runs 134 assertions with no app running:
 
 | File | Guards |
 |---|---|
 | `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse`, `tree` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting, tree rows and keyboard picks |
 | `codes` | a failure code is read from the `FILE_EDITOR:` marker, never from a word that a path or message happens to contain |
+| `diff` | the disk/buffer line diff: insert, delete, replace, empty files, blank lines, trailing newlines, both numbering columns, collapsed runs, and a rewrite past the cell cap |
 | `report` | the diagnostics block, the prefilled issue link, a single-line title, and the length cap GitHub accepts |
 | `fs-core` | atomic writes, stale-baseline refusal, BOM/CRLF, size and UTF-8 limits, and file identity (`samePath` by device and inode) |
 | `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
@@ -118,6 +119,9 @@ a broken build once.
   compares `dev` and `ino`, so `Foo.ts` and `foo.ts` on a case-insensitive
   volume are one file with one buffer. Comparing paths as text gives two tabs,
   two drafts and a silent last-save-wins.
+- The conflict bar's **Compare** and the menu's **Compare with disk** show a line
+  diff of disk against buffer. Keep it read-only: the value is that it changes
+  nothing while the user decides.
 - A failed read or write is logged in the main process (`io()` in `main()`), and
   **Copy diagnostics** / **Report a problem** in the editor menu carry the build
   marker, contract id, platform, file and last status line. A report without

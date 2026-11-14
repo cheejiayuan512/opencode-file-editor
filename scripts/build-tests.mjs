@@ -6,6 +6,7 @@ import { mkdir, rm } from "node:fs/promises";
 const outdir = "test/.build";
 const entries = [
   "codes",
+  "diff",
   "paths",
   "links",
   "tabs",

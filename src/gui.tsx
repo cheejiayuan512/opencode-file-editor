@@ -60,6 +60,7 @@ import {
 } from "./tabs";
 import { explain, isExternalChange } from "./status";
 import { composeReport, formatReport } from "./report";
+import { MAX_DISPLAY, counts, diffLines, toDisplay, type DiffLine } from "./diff";
 import {
   crumbTrail,
   delimiterFor,
@@ -80,7 +81,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v35";
+const GUI_VERSION = "gui v36";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -465,6 +466,12 @@ function Editor(props: {
   const [busy, setBusy] = createSignal(false);
   const [dirty, setDirty] = createSignal(false);
   const [conflict, setConflict] = createSignal(false);
+  // The diff currently on screen, if any: the disk version against the buffer.
+  const [compare, setCompare] = createSignal<{
+    rows: DiffLine[];
+    added: number;
+    removed: number;
+  } | null>(null);
   const [canUndo, setCanUndo] = createSignal(false);
   const [canRedo, setCanRedo] = createSignal(false);
   const [view, setView] = createSignal<"source" | "preview" | "table">(
@@ -647,6 +654,8 @@ function Editor(props: {
       const result = await props.fs.read({ path: target, base });
       if (seq !== fileSeq) return;
       setText(result.text);
+      // A diff of the text we just replaced would be a lie.
+      setCompare(null);
       setPathInput(target);
       baseline = result.text;
       resetHistory(result.text);
@@ -768,6 +777,35 @@ function Editor(props: {
       );
     } catch (error) {
       setStatus(`Could not open the file manager: ${explain(error)}`);
+    }
+  }
+
+  // The one decision a user cannot take back blind: Reload drops the buffer,
+  // Overwrite drops the disk. Showing both sides makes it an informed choice.
+  async function compareWithDisk() {
+    if (!props.path) {
+      setStatus("Open a file first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const disk = await props.fs.read({
+        path: props.path,
+        base: props.base(),
+      });
+      const rows = diffLines(disk.text, text());
+      const { added, removed } = counts(rows);
+      setCompare({ rows: toDisplay(rows), added, removed });
+      setStatus(
+        added + removed === 0
+          ? "No differences: the disk matches this buffer."
+          : `On disk vs this buffer: ${added} added, ${removed} removed.`,
+      );
+    } catch (error) {
+      setCompare(null);
+      setStatus(`Could not compare: ${explain(error)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -900,6 +938,11 @@ function Editor(props: {
       label: "Reload from disk",
       disabled: busy(),
       onSelect: () => void load(props.path, props.base(), true),
+    },
+    {
+      label: "Compare with disk",
+      disabled: !props.path || busy(),
+      onSelect: () => void compareWithDisk(),
     },
     { type: "separator" },
     {
@@ -1209,14 +1252,20 @@ function Editor(props: {
               <props.ui.Button
                 size="small"
                 variant={view() === primaryView() ? "neutral" : "ghost"}
-                onClick={() => setView(primaryView())}
+                onClick={() => {
+                  setCompare(null);
+                  setView(primaryView());
+                }}
               >
                 {primaryView() === "table" ? "Table" : "Preview"}
               </props.ui.Button>
               <props.ui.Button
                 size="small"
                 variant={view() === "source" ? "neutral" : "ghost"}
-                onClick={() => setView("source")}
+                onClick={() => {
+                  setCompare(null);
+                  setView("source");
+                }}
               >
                 Source
               </props.ui.Button>
@@ -1250,6 +1299,14 @@ function Editor(props: {
             <props.ui.Button
               size="small"
               variant="ghost"
+              disabled={busy()}
+              onClick={() => void compareWithDisk()}
+            >
+              Compare
+            </props.ui.Button>
+            <props.ui.Button
+              size="small"
+              variant="ghost"
               onClick={() => void load(props.path, props.base(), true)}
             >
               Reload
@@ -1272,7 +1329,173 @@ function Editor(props: {
             position: "relative",
           }}
         >
-          <Show when={view() === "source"}>
+          <Show when={compare()}>
+            {(result) => (
+              <div
+                style={{
+                  flex: "1",
+                  "min-width": "0",
+                  "min-height": "0",
+                  display: "flex",
+                  "flex-direction": "column",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    "align-items": "center",
+                    padding: "4px 10px",
+                    "border-bottom":
+                      "1px solid color-mix(in srgb, currentColor 12%, transparent)",
+                    "font-size": "11.5px",
+                  }}
+                >
+                  <span style={{ flex: "1", "min-width": "0" }}>
+                    <span style={{ opacity: "0.6" }}>On disk → buffer:</span>{" "}
+                    <span style={{ color: "var(--color-success, #3fb950)" }}>
+                      +{result().added}
+                    </span>{" "}
+                    <span style={{ color: "var(--color-danger, #f85149)" }}>
+                      −{result().removed}
+                    </span>
+                  </span>
+                  <props.ui.Button
+                    size="small"
+                    variant="ghost"
+                    onClick={() => setCompare(null)}
+                  >
+                    Close
+                  </props.ui.Button>
+                </div>
+
+                <Show
+                  when={result().added + result().removed > 0}
+                  fallback={
+                    <div
+                      style={{
+                        padding: "10px 12px",
+                        "font-size": "12px",
+                        opacity: "0.7",
+                      }}
+                    >
+                      No differences: the file on disk matches this buffer.
+                    </div>
+                  }
+                >
+                  <div
+                    style={{
+                      flex: "1",
+                      "min-height": "0",
+                      overflow: "auto",
+                      "font-family":
+                        "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
+                      "font-size": "12.5px",
+                      "line-height": "1.65",
+                    }}
+                  >
+                    <For each={result().rows.slice(0, MAX_DISPLAY)}>
+                      {(row) =>
+                        row.kind === "gap" ? (
+                          <div
+                            style={{
+                              padding: "1px 10px",
+                              "font-size": "11px",
+                              opacity: "0.45",
+                              "border-top":
+                                "1px solid color-mix(in srgb, currentColor 8%, transparent)",
+                              "border-bottom":
+                                "1px solid color-mix(in srgb, currentColor 8%, transparent)",
+                            }}
+                          >
+                            ⋯ {row.count} unchanged line
+                            {row.count === 1 ? "" : "s"}
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: "flex",
+                              "min-width": "fit-content",
+                              background:
+                                row.kind === "added"
+                                  ? "color-mix(in srgb, var(--color-success, #3fb950) 14%, transparent)"
+                                  : row.kind === "removed"
+                                    ? "color-mix(in srgb, var(--color-danger, #f85149) 14%, transparent)"
+                                    : undefined,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "46px",
+                                "flex-shrink": "0",
+                                "text-align": "right",
+                                padding: "0 6px",
+                                opacity: "0.35",
+                                "user-select": "none",
+                                "font-variant-numeric": "tabular-nums",
+                              }}
+                            >
+                              {row.oldNo ?? ""}
+                            </span>
+                            <span
+                              style={{
+                                width: "46px",
+                                "flex-shrink": "0",
+                                "text-align": "right",
+                                padding: "0 6px",
+                                opacity: "0.35",
+                                "user-select": "none",
+                                "font-variant-numeric": "tabular-nums",
+                              }}
+                            >
+                              {row.newNo ?? ""}
+                            </span>
+                            <span
+                              style={{
+                                width: "18px",
+                                "flex-shrink": "0",
+                                "text-align": "center",
+                                "user-select": "none",
+                                opacity: "0.7",
+                              }}
+                            >
+                              {row.kind === "added"
+                                ? "+"
+                                : row.kind === "removed"
+                                  ? "-"
+                                  : ""}
+                            </span>
+                            <span
+                              style={{
+                                "white-space": "pre",
+                                "padding-right": "12px",
+                              }}
+                            >
+                              {row.text === "" ? " " : row.text}
+                            </span>
+                          </div>
+                        )
+                      }
+                    </For>
+                    <Show when={result().rows.length > MAX_DISPLAY}>
+                      <div
+                        style={{
+                          padding: "6px 10px",
+                          "font-size": "11px",
+                          opacity: "0.6",
+                        }}
+                      >
+                        Showing the first {MAX_DISPLAY} rows. Use Copy
+                        diagnostics if the report needs the rest.
+                      </div>
+                    </Show>
+                  </div>
+                </Show>
+              </div>
+            )}
+          </Show>
+
+          <Show when={!compare() && view() === "source"}>
             <Show when={lineNumbers()}>
               <div
                 ref={(element) => (gutter = element)}
@@ -1389,7 +1612,7 @@ function Editor(props: {
             />
           </Show>
 
-          <Show when={view() === "preview"}>
+          <Show when={!compare() && view() === "preview"}>
             <div
               style={{
                 flex: "1",
@@ -1402,7 +1625,7 @@ function Editor(props: {
             </div>
           </Show>
 
-          <Show when={view() === "table" && table()}>
+          <Show when={!compare() && view() === "table" && table()}>
             <div style={{ flex: "1", "min-height": "0", overflow: "auto" }}>
               <table
                 style={{

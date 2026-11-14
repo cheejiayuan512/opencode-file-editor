@@ -33,6 +33,8 @@ open them to try the panel.</sub>
 - **Autosave** with `Ctrl/Cmd+S`, undo/redo, and drafts that survive tab switches.
 - **Conflict guard** — if a file changes on disk while it is open, autosave stops
   and asks **Reload** or **Overwrite**. It never silently overwrites.
+- **Compare with disk** — a line diff of the disk against your buffer, with both
+  line numbers, so Reload or Overwrite is an informed choice instead of a guess.
 - **Atomic writes** — temp file then rename, so a crash cannot truncate a file.
 - **Byte-faithful** — CRLF and UTF-8 BOM are preserved.
 - **Markdown preview** rendered by the app's timeline renderer, with a Source toggle.

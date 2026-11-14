@@ -11,6 +11,7 @@ const source = readFileSync("src/gui.tsx", "utf8");
 // into the literal string "[inert module node:path]" at runtime.
 const RENDERER_MODULES = [
   "codes",
+  "diff",
   "paths",
   "links",
   "tabs",

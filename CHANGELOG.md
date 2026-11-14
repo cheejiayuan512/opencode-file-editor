@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+- **Compare with disk.** When the agent changes a file that is open here, the
+  panel offered Reload or Overwrite with nothing to look at: Reload drops the
+  buffer, Overwrite drops the disk, and either can be the wrong click. The
+  conflict bar now has **Compare**, and the menu has **Compare with disk** at any
+  time. Lines only on disk are red, lines only in the buffer are green, with
+  both line numbers, three lines of context and long unchanged runs collapsed.
+- The diff is a pure module (`src/diff.ts`) with tests for insertion, deletion,
+  replacement, empty files, blank lines, trailing newlines, numbering on both
+  sides, and a rewrite too large to diff line-by-line — which degrades to
+  "these lines changed" instead of hanging.
+- The comparison is never truncated silently: past 4,000 rows the view says so.
+
 ## 0.3.0
 
 - **Report a problem** in the editor menu opens a GitHub issue with the
