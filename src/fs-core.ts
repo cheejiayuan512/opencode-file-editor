@@ -101,6 +101,23 @@ export async function readTextFile(path: string): Promise<ReadResult> {
 }
 
 /**
+ * Whether two paths name the same file, decided by the filesystem rather than the
+ * string. A case-insensitive volume (macOS APFS, Windows NTFS) answers "Foo.ts"
+ * and "foo.ts" for one file; keying a buffer by the spelling would give two tabs
+ * and let the last save win.
+ */
+export async function samePath(a: string, b: string) {
+  if (a === b) return true
+  try {
+    const [left, right] = await Promise.all([stat(a), stat(b)])
+    // Device plus inode is the file itself; 0 means the platform did not say.
+    return left.ino !== 0 && left.dev === right.dev && left.ino === right.ino
+  } catch {
+    return false
+  }
+}
+
+/**
  * Sniffs a file's first block for text. A path that cannot be opened is not text:
  * this answer feeds a click on a file that may have been deleted, so it must never
  * throw out of the Ipc handler.

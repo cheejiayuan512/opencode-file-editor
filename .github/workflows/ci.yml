@@ -24,3 +24,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+      # Report-only: the number is a baseline to compare against, not a gate.
+      # A threshold set before the window handlers had tests would just be met
+      # by the pure modules and hide the untested part.
+      - name: Coverage
+        if: runner.os == 'Linux'
+        run: npm run test:coverage

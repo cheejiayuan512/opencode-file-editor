@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.6
+
+- **Fixed: one file under two spellings was two buffers.** Tabs and drafts were
+  keyed by the path's exact text, so on a case-insensitive volume (macOS APFS,
+  Windows NTFS) `Foo.ts` and `foo.ts` opened two tabs over one file, and
+  whichever autosaved last silently overwrote the other's edits. Opening a file
+  now asks the filesystem whether it is one the panel already holds
+  (`sameFile`, device plus inode) and reuses that tab. The Ipc contract moves to
+  `file-editor.fs.v4`.
+- **A failed read or write is logged**, with the method and the error, in the
+  app log where a report can quote it.
+- **Copy diagnostics** in the editor menu puts the build marker, contract id,
+  platform, file, view, size and last status line on the clipboard.
+- **Coverage is measured** (`npm run test:coverage`, reported on CI for Linux).
+  It covers the pure helpers and `fs-core` only; the panel cannot run outside
+  the host. Report-only: no threshold yet.
+
 ## 0.2.5
 
 - **A panel error now stays in the panel.** An error boundary shows what

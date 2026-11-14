@@ -36,15 +36,22 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 98 assertions with no app running:
+`npm test` builds first, then runs 115 assertions with no app running:
 
 | File | Guards |
 |---|---|
 | `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse`, `tree` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting, tree rows and keyboard picks |
+| `fs-core` | atomic writes, stale-baseline refusal, BOM/CRLF, size and UTF-8 limits, and file identity (`samePath` by device and inode) |
 | `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
 | `architecture` | renderer modules import no Node builtins, every `layout.open` uses `tab: "select"`, the panel uses `wide`, refs are attached |
 | `bundle` | file-name layout (no `exports`), version marker matches the source, parses as CommonJS |
+| `release` | a tag that disagrees with `package.json`, or has no CHANGELOG heading, is refused |
 | `publish` | a real `npm pack` ships only the needed files and stays small |
+
+`npm run test:coverage` reports coverage for the modules the tests load: the
+pure helpers and `fs-core`. It says nothing about `src/gui.tsx`, which cannot
+run outside the host — that half is covered by `verify:live` and the bundle
+tests instead. The number is a baseline, not a gate.
 
 `npm run verify:live` asks the running app what it actually loaded:
 
@@ -99,6 +106,14 @@ a broken build once.
 - BOM and CRLF are preserved; 2 MB and strict UTF-8 limits are enforced.
 - Directory listings cap at `MAX_ENTRIES` (2000) and report the real total.
 - Files that fail to open are never added to the recent list.
+- **File identity comes from the filesystem, not the string.** `samePath`
+  compares `dev` and `ino`, so `Foo.ts` and `foo.ts` on a case-insensitive
+  volume are one file with one buffer. Comparing paths as text gives two tabs,
+  two drafts and a silent last-save-wins.
+- A failed read or write is logged in the main process (`io()` in `main()`), and
+  **Copy diagnostics** in the editor menu puts the build marker, contract id,
+  platform, file and last status line on the clipboard. A report without those
+  costs a round trip for each.
 
 ## Publishing
 

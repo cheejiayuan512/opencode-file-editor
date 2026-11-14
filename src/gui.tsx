@@ -32,6 +32,7 @@ import {
   isTextFile,
   readTextFile,
   resolvePath,
+  samePath,
   writeTextFile,
   type ReadResult,
   type WriteResult,
@@ -49,6 +50,7 @@ import {
 import {
   LAUNCHER,
   BROWSER,
+  PLUGIN,
   keyFor,
   pathFromId,
   pickShown,
@@ -74,13 +76,17 @@ import {
 } from "./tree";
 import { revealCommand } from "./reveal";
 
+// One source of truth for the build marker: `verify:live` and the diagnostics
+// action both report it.
+const GUI_VERSION = "gui v34";
+
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
 // no longer matches: the agent edits these same files while the panel is open.
 const Fs = Ipc.define({
   // Bumped when methods are added: the host keeps the contract registered under
   // an id across plugin reloads, so an old id would answer with the old methods.
-  id: "file-editor.fs.v3",
+  id: "file-editor.fs.v4",
   methods: {
     read: {
       input: Schema.Struct({ path: Schema.String, base: Schema.String }),
@@ -142,6 +148,10 @@ const Fs = Ipc.define({
       input: Schema.Struct({ path: Schema.String, base: Schema.String }),
       output: Schema.Boolean,
     },
+    sameFile: {
+      input: Schema.Struct({ a: Schema.String, b: Schema.String }),
+      output: Schema.Boolean,
+    },
   },
 });
 
@@ -166,6 +176,7 @@ type FsClient = {
   }): Promise<{ entries: readonly Entry[]; total: number }>;
   exists(input: { path: string; base: string }): Promise<boolean>;
   isText(input: { path: string; base: string }): Promise<boolean>;
+  sameFile(input: { a: string; b: string }): Promise<boolean>;
 };
 
 // One buffer per path, so switching tabs does not throw away unsaved text.
@@ -415,6 +426,26 @@ function Browser(props: {
       </Show>
     </div>
   );
+}
+
+/**
+ * The facts a bug report needs and a screenshot cannot carry. `GUI_VERSION` and
+ * the contract id say whether the report is about a build that already has the
+ * fix; the status line is where the actual error message ends up. Nobody should
+ * have to be asked for these one at a time.
+ */
+function diagnostics(
+  facts: Record<string, string | number | boolean>,
+): string {
+  const lines = [
+    `opencode-file-editor ${GUI_VERSION}`,
+    `contract ${Fs.id}`,
+    `platform ${navigator.platform || "unknown"}`,
+  ];
+  for (const [key, value] of Object.entries(facts))
+    lines.push(`${key} ${String(value) || "(empty)"}`);
+  lines.push(`user agent ${navigator.userAgent}`);
+  return lines.join("\n");
 }
 
 function Editor(props: {
@@ -866,6 +897,26 @@ function Editor(props: {
           relativeTo(props.base(), props.path),
         );
         setStatus("Copied path.");
+      },
+    },
+    {
+      // The plugin had no way to answer "what version, on what machine, with
+      // what error" without a round trip through the reporter.
+      label: "Copy diagnostics",
+      onSelect: () => {
+        const report = diagnostics({
+          file: props.path,
+          base: props.base(),
+          view: view(),
+          state: conflict() ? "conflict" : dirty() ? "dirty" : "clean",
+          size: `${text().length} chars`,
+          status: status(),
+        });
+        void navigator.clipboard.writeText(report).then(
+          () => setStatus("Copied diagnostics - paste them into the report."),
+          () =>
+            setStatus("Could not copy diagnostics: the clipboard is blocked."),
+        );
       },
     },
     {
@@ -1972,7 +2023,7 @@ export default Plugin.define({
     },
   },
   setup(ctx) {
-    console.log("[file-editor] gui v33");
+    console.log(`[file-editor] ${GUI_VERSION}`);
     const fs = ctx.main(Fs);
 
     ctx.add(Panel, {
@@ -2036,12 +2087,34 @@ export default Plugin.define({
         const active = props.tab.id.startsWith("file:")
           ? pathFromId(props.tab.id, props.session.directory)
           : "";
+        // Every path the panel already holds a tab or a draft for.
+        const knownPaths = () => {
+          const paths = new Set<string>(buffers.keys());
+          const prefix = `${PLUGIN}:file:`;
+          for (const id of ctx.layout.stored(props.session))
+            if (id.startsWith(prefix)) paths.add(id.slice(prefix.length));
+          return [...paths];
+        };
+
         const openFile = (target: string) => {
           // The rail names workspace-relative paths; a tab is keyed by the
           // absolute file so the same file is one tab from every entry point.
           const absolute = canonicalPath(target, props.screen.file.root);
-          rememberRecent(absolute);
-          ctx.layout.open(tabKey(absolute), props.session, { tab: "select" });
+          void (async () => {
+            // One file can arrive under two spellings on a case-insensitive
+            // volume. Reuse the key already open, or the second spelling starts a
+            // second buffer and the next save drops the first one's edits.
+            let key = absolute;
+            for (const known of knownPaths()) {
+              if (known === absolute) continue;
+              if (await fs.sameFile({ a: known, b: absolute })) {
+                key = known;
+                break;
+              }
+            }
+            rememberRecent(key);
+            ctx.layout.open(tabKey(key), props.session, { tab: "select" });
+          })();
         };
 
         // A render error must stay inside the panel. Without a boundary it
@@ -2238,12 +2311,34 @@ export default Plugin.define({
   main(ctx) {
     ctx.log.write("info", "file-editor main process ready");
 
+    // A failed read or write is the only evidence a bug report can carry: the
+    // window may only have room for "Load failed". Keep the detail in the app log
+    // as well, and never let logging be the thing that breaks a request.
+    const io = async <T,>(method: string, run: () => Promise<T>): Promise<T> => {
+      try {
+        return await run();
+      } catch (error) {
+        try {
+          ctx.log.write(
+            "error",
+            `[file-editor] ${method} failed: ${String(error)}`,
+          );
+        } catch {
+          // Nothing to add.
+        }
+        throw error;
+      }
+    };
+
     ctx.provide(Fs, {
-      read: async ({ path, base }) => readTextFile(resolvePath(path, base)),
+      read: async ({ path, base }) =>
+        io("read", () => readTextFile(resolvePath(path, base))),
       write: async ({ path, base, text, expected }) =>
-        writeTextFile(resolvePath(path, base), text, expected),
+        io("write", () =>
+          writeTextFile(resolvePath(path, base), text, expected),
+        ),
       forceWrite: async ({ path, base, text }) =>
-        writeTextFile(resolvePath(path, base), text, null),
+        io("forceWrite", () => writeTextFile(resolvePath(path, base), text, null)),
       resolve: async ({ path, base }) => resolvePath(path, base),
       reveal: async ({ path, base }) => {
         const target = resolvePath(path, base);
@@ -2261,7 +2356,9 @@ export default Plugin.define({
       },
       list: async ({ path, base }) => {
         const folder = resolvePath(path, base);
-        const entries = await readdir(folder, { withFileTypes: true });
+        const entries = await io("list", () =>
+          readdir(folder, { withFileTypes: true }),
+        );
         return limitEntries(
           sortEntries(
             entries.map((entry) => ({
@@ -2280,7 +2377,8 @@ export default Plugin.define({
         }
       },
       isText: async ({ path, base }) =>
-        isTextFile(resolvePath(path, base)),
+        io("isText", () => isTextFile(resolvePath(path, base))),
+      sameFile: async ({ a, b }) => io("sameFile", () => samePath(a, b)),
     });
   },
 });

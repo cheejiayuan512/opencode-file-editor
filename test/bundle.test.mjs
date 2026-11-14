@@ -44,10 +44,16 @@ test("the built bundle matches the source version marker", (t) => {
   }
   const source = readFileSync("src/gui.tsx", "utf8");
   const expected = source.match(/gui v(\d+)/)?.[1];
-  const built = readFileSync(bundle, "utf8").match(
-    /\[file-editor\] gui v(\d+)/,
-  )?.[1];
   assert.ok(expected, "no version marker in src/gui.tsx");
+  const code = readFileSync(bundle, "utf8");
+  // The marker is one const that both the console log and Copy diagnostics read,
+  // so the bundle holds the literal once instead of writing it into the log
+  // string. Match the literal, not the old `[file-editor] gui vN` line.
+  const built = code.match(/gui v(\d+)/)?.[1];
+  assert.ok(
+    code.includes("[file-editor] "),
+    "the bundle never logs under the plugin name",
+  );
   assert.equal(
     built,
     expected,

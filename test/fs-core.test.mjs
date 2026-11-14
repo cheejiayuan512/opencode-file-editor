@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { link, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,6 +9,7 @@ import {
   isTextFile,
   looksLikeText,
   readTextFile,
+  samePath,
   writeTextFile,
 } from "./.build/fs-core.mjs";
 
@@ -124,4 +126,43 @@ test("expected null creates a file", async () => {
   const file = join(dir, "new.txt");
   await writeTextFile(file, "created\n", null);
   assert.equal(await readFile(file, "utf8"), "created\n");
+});
+
+test("samePath decides by the file, not by the spelling", async () => {
+  // Two spellings, one file: exactly the case where keying a buffer by the
+  // string gives two tabs and the last save silently wins.
+  const file = join(dir, "identity.txt");
+  const alias = join(dir, "identity-link.txt");
+  await writeFile(file, "x\n");
+  await link(file, alias);
+
+  assert.equal(await samePath(file, file), true);
+  assert.equal(await samePath(file, alias), true, "a hard link is the same file");
+  assert.equal(await samePath(file, join(dir, "other.txt")), false);
+  // A missing path is not an error: a click may name a file that is gone.
+  assert.equal(await samePath(file, join(dir, "missing.txt")), false);
+  assert.equal(await samePath(join(dir, "a"), join(dir, "b")), false);
+});
+
+test("a case variant folds only on a case-insensitive volume", async () => {
+  // macOS APFS and Windows NTFS answer for either spelling; Linux ext4 does
+  // not. Assert what this volume does, so the test is honest on all three
+  // rather than skipped on two of them.
+  const lower = join(dir, "fold-me.txt");
+  const upper = join(dir, "FOLD-ME.TXT");
+  await writeFile(lower, "x\n");
+
+  const folds = existsSync(upper);
+  assert.equal(
+    await samePath(lower, upper),
+    folds,
+    folds
+      ? "a case-insensitive volume must report one file"
+      : "a case-sensitive volume must keep the spellings apart",
+  );
+
+  if (!folds) {
+    await writeFile(upper, "y\n");
+    assert.equal(await samePath(lower, upper), false);
+  }
 });

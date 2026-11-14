@@ -47,6 +47,8 @@ open them to try the panel.</sub>
   the highlight and `Enter` opens it.
 - **Recent files** on the **Open file** tab.
 - **Reveal in file manager** and **copy relative path**.
+- **Copy diagnostics** — the build marker, contract id, platform, file and last
+  status line on the clipboard, so a bug report can be acted on.
 - Opens file links from chat in a tab instead of the read-only preview.
 
 ## Install
@@ -106,7 +108,8 @@ Restart OpenCode Desktop, then open the panel with `Ctrl+Shift+E`
 
 Tested against OpenCode Desktop 2.2.6. Each release checks the app's plugin-API
 major against the dependency before publishing, so a host upgrade fails the
-build instead of breaking users.
+build instead of breaking users. A nightly job also runs the suite against the
+newest published `@opencode/plugin`, which at the time of writing is 2.2.7.
 
 "Launched on" is the honest column: only Windows has been run with the plugin.
 Path handling is unit-tested against Windows, macOS and Linux fixtures, and CI

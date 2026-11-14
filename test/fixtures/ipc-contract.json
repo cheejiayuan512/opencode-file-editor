@@ -1,5 +1,5 @@
 {
-  "id": "file-editor.fs.v3",
+  "id": "file-editor.fs.v4",
   "methods": [
     "read",
     "write",
@@ -8,6 +8,7 @@
     "reveal",
     "list",
     "exists",
-    "isText"
+    "isText",
+    "sameFile"
   ]
 }

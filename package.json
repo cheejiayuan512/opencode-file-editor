@@ -1,6 +1,6 @@
 {
   "name": "opencode-file-editor",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "A file editor panel for OpenCode Desktop: tabs, autosave, external-change protection, and Markdown preview.",
   "type": "module",
   "author": "JIAYUAN",
@@ -39,6 +39,7 @@
     "build:tests": "node scripts/build-tests.mjs",
     "pretest": "npm run build",
     "test": "npm run build:tests && node --test \"test/*.test.mjs\"",
+    "test:coverage": "npm run build:tests && node --test --experimental-test-coverage \"test/*.test.mjs\"",
     "verify:live": "node scripts/verify-live.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run typecheck && npm run build && npm test"
