@@ -7,6 +7,8 @@ const outdir = "test/.build";
 const entries = [
   "codes",
   "diff",
+  "edit",
+  "find",
   "paths",
   "links",
   "tabs",

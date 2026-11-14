@@ -61,6 +61,15 @@ import {
 import { explain, isExternalChange } from "./status";
 import { composeReport, formatReport } from "./report";
 import { MAX_DISPLAY, counts, diffLines, toDisplay, type DiffLine } from "./diff";
+import { findMatches, matchIndexAt, replaceAll, stepMatch } from "./find";
+import {
+  commentToken,
+  indentLines,
+  outdentLines,
+  toggleComment,
+  INDENT,
+  type EditResult,
+} from "./edit";
 import {
   crumbTrail,
   delimiterFor,
@@ -81,7 +90,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v36";
+const GUI_VERSION = "gui v37";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -472,6 +481,12 @@ function Editor(props: {
     added: number;
     removed: number;
   } | null>(null);
+  const [findOpen, setFindOpen] = createSignal(false);
+  const [findQuery, setFindQuery] = createSignal("");
+  const [findReplace, setFindReplace] = createSignal("");
+  const [findCase, setFindCase] = createSignal(false);
+  const [findAt, setFindAt] = createSignal(0);
+  let findInput: HTMLInputElement | undefined;
   const [canUndo, setCanUndo] = createSignal(false);
   const [canRedo, setCanRedo] = createSignal(false);
   const [view, setView] = createSignal<"source" | "preview" | "table">(
@@ -809,6 +824,141 @@ function Editor(props: {
     }
   }
 
+  // Find and replace over the open file. Matches are recomputed from the text
+  // every time, so a keystroke in the editor cannot leave a stale span behind.
+  const matches = () =>
+    findMatches(text(), findQuery(), { caseSensitive: findCase() });
+
+  const matchLabel = () => {
+    if (findQuery() === "") return "";
+    const list = matches();
+    if (list.length === 0) return "No matches";
+    return `${Math.min(findAt(), list.length - 1) + 1} of ${list.length}`;
+  };
+
+  /** Select a match, and scroll it to the middle of the view. */
+  function revealMatch(match: { start: number; end: number }, focus = true) {
+    const field = area();
+    if (!field) return;
+    if (focus) field.focus();
+    field.setSelectionRange(match.start, match.end);
+
+    // A textarea cannot scroll a range into view, so the target is computed:
+    // the visual row of the line, using the wrap measurements the gutter already
+    // takes. With wrap off every line is one row.
+    const line = text().slice(0, match.start).split("\n").length - 1;
+    const rows = wrappedRows();
+    let visual = 0;
+    for (let index = 0; index < line; index += 1)
+      visual += Math.max(1, rows[index] ?? 1);
+    const lineHeight =
+      Number.parseFloat(getComputedStyle(field).lineHeight) || 20;
+    field.scrollTop = Math.max(
+      0,
+      visual * lineHeight - field.clientHeight / 2,
+    );
+  }
+
+  function openFind() {
+    // Find only exists in the source view, so opening it there is the least
+    // surprising thing to do from a preview.
+    if (view() !== "source") {
+      setCompare(null);
+      setView("source");
+    }
+    setFindOpen(true);
+    requestAnimationFrame(() => {
+      findInput?.focus();
+      findInput?.select();
+    });
+  }
+
+  function closeFind() {
+    setFindOpen(false);
+    area()?.focus();
+  }
+
+  /** Typing keeps the caret in the field but previews the first match. */
+  function changeQuery(value: string) {
+    setFindQuery(value);
+    setFindAt(0);
+    const first = findMatches(text(), value, { caseSensitive: findCase() })[0];
+    if (first) revealMatch(first, false);
+  }
+
+  function findStep(backwards = false) {
+    const list = matches();
+    if (list.length === 0) return;
+
+    const field = area();
+    const from = field?.selectionStart ?? 0;
+    const to = field?.selectionEnd ?? from;
+    const onMatch = list.some((match) => match.start === from && match.end === to);
+    // Step past the current match, or the next press would do nothing.
+    const match = stepMatch(
+      list,
+      backwards ? (onMatch ? from : from + 1) : onMatch ? to : from,
+      backwards,
+    );
+    if (!match) return;
+    setFindAt(Math.max(0, matchIndexAt(list, match.start)));
+    revealMatch(match);
+  }
+
+  function replaceCurrent() {
+    const list = matches();
+    if (list.length === 0) {
+      setStatus("Nothing to replace.");
+      return;
+    }
+    const field = area();
+    const from = field?.selectionStart ?? 0;
+    const match =
+      list.find((entry) => entry.start === from) ??
+      list[Math.min(findAt(), list.length - 1)];
+    applyEdit({
+      text: text().slice(0, match.start) + findReplace() + text().slice(match.end),
+      start: match.start + findReplace().length,
+      end: match.start + findReplace().length,
+    });
+    // The replacement may match the query again; start after it.
+    requestAnimationFrame(() => {
+      const refreshed = findMatches(text(), findQuery(), {
+        caseSensitive: findCase(),
+      });
+      setFindAt(0);
+      const next = stepMatch(refreshed, match.start + findReplace().length);
+      if (next) revealMatch(next);
+    });
+    setStatus("Replaced 1 match.");
+  }
+
+  function replaceEvery() {
+    const result = replaceAll(text(), findQuery(), findReplace(), {
+      caseSensitive: findCase(),
+    });
+    if (result.count === 0) {
+      setStatus("Nothing to replace.");
+      return;
+    }
+    edit(result.text);
+    setFindAt(0);
+    setStatus(
+      `Replaced ${result.count} ${result.count === 1 ? "match" : "matches"}.`,
+    );
+  }
+
+  /** Apply a pure edit result and put the caret where the edit says it goes. */
+  function applyEdit(result: EditResult) {
+    edit(result.text);
+    requestAnimationFrame(() => {
+      const field = area();
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(result.start, result.end);
+    });
+  }
+
   // A clean buffer is re-read so changes made while the tab was closed show up;
   // a dirty one is restored so switching tabs never costs typing.
   onMount(() => {
@@ -995,10 +1145,14 @@ function Editor(props: {
       },
     },
     {
-      label: "Browse this folder",
-      onSelect: () => props.browseFolder(folderOf(props.path)),
+      label: "Find in file…",
+      disabled: !props.path,
+      onSelect: openFind,
     },
     {
+      label: "Browse this folder",
+      onSelect: () => props.browseFolder(folderOf(props.path)),
+    },    {
       label: "Reveal in file manager",
       onSelect: () => void revealFile(),
     },
@@ -1279,6 +1433,125 @@ function Editor(props: {
           <props.ui.Menu label="File actions" items={menuItems()} />
         </div>
 
+        <Show when={findOpen() && view() === "source" && !compare()}>
+          <div
+            style={{
+              display: "flex",
+              gap: "6px",
+              "align-items": "center",
+              "flex-wrap": "wrap",
+              padding: "6px 10px",
+              "border-bottom":
+                "1px solid color-mix(in srgb, currentColor 12%, transparent)",
+              "font-size": "12px",
+            }}
+          >
+            <input
+              ref={(element) => (findInput = element)}
+              value={findQuery()}
+              aria-label="Find in this file"
+              placeholder="Find"
+              onInput={(event) => changeQuery(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  closeFind();
+                  return;
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  findStep(event.shiftKey);
+                }
+              }}
+              style={{
+                flex: "1",
+                "min-width": "90px",
+                padding: "3px 8px",
+                border:
+                  "1px solid color-mix(in srgb, currentColor 20%, transparent)",
+                "border-radius": "6px",
+                background: "transparent",
+                color: "inherit",
+                outline: "none",
+                font: "inherit",
+              }}
+            />
+            <span
+              style={{
+                opacity: "0.55",
+                "font-size": "11px",
+                "min-width": "54px",
+                "font-variant-numeric": "tabular-nums",
+              }}
+            >
+              {matchLabel()}
+            </span>
+            <props.ui.IconButton
+              icon="arrow-left"
+              label="Previous match"
+              size="small"
+              onClick={() => findStep(true)}
+            />
+            <props.ui.IconButton
+              icon="arrow-right"
+              label="Next match"
+              size="small"
+              onClick={() => findStep(false)}
+            />
+            <props.ui.Button
+              size="small"
+              variant={findCase() ? "neutral" : "ghost"}
+              onClick={() => setFindCase((value) => !value)}
+            >
+              Aa
+            </props.ui.Button>
+            <input
+              value={findReplace()}
+              aria-label="Replace with"
+              placeholder="Replace with"
+              onInput={(event) => setFindReplace(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  closeFind();
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  replaceCurrent();
+                }
+              }}
+              style={{
+                flex: "1",
+                "min-width": "90px",
+                padding: "3px 8px",
+                border:
+                  "1px solid color-mix(in srgb, currentColor 20%, transparent)",
+                "border-radius": "6px",
+                background: "transparent",
+                color: "inherit",
+                outline: "none",
+                font: "inherit",
+              }}
+            />
+            <props.ui.Button
+              size="small"
+              variant="ghost"
+              onClick={replaceCurrent}
+            >
+              Replace
+            </props.ui.Button>
+            <props.ui.Button size="small" variant="ghost" onClick={replaceEvery}>
+              All
+            </props.ui.Button>
+            <props.ui.IconButton
+              icon="close"
+              label="Close find"
+              size="small"
+              onClick={closeFind}
+            />
+          </div>
+        </Show>
+
         <Show when={conflict()}>
           <div
             style={{
@@ -1547,10 +1820,51 @@ function Editor(props: {
                 });
               }}
               onKeyDown={(event) => {
+                if (event.key === "Escape" && findOpen()) {
+                  event.preventDefault();
+                  closeFind();
+                  return;
+                }
+
+                // Tab must indent, not move focus out of the editor.
+                if (event.key === "Tab") {
+                  event.preventDefault();
+                  const field = event.currentTarget;
+                  applyEdit(
+                    event.shiftKey
+                      ? outdentLines(text(), field.selectionStart, field.selectionEnd, INDENT)
+                      : indentLines(text(), field.selectionStart, field.selectionEnd, INDENT),
+                  );
+                  return;
+                }
+
                 const mod = event.ctrlKey || event.metaKey;
                 if (!mod) return;
 
                 const key = event.key.toLowerCase();
+                if (key === "f") {
+                  event.preventDefault();
+                  openFind();
+                  return;
+                }
+                if (key === "/") {
+                  const token = commentToken(props.path);
+                  if (!token) {
+                    setStatus("This file type has no line comment.");
+                    return;
+                  }
+                  event.preventDefault();
+                  const field = event.currentTarget;
+                  applyEdit(
+                    toggleComment(
+                      text(),
+                      field.selectionStart,
+                      field.selectionEnd,
+                      token,
+                    ),
+                  );
+                  return;
+                }
                 if (key === "s") {
                   event.preventDefault();
                   void save();

@@ -41,6 +41,9 @@ open them to try the panel.</sub>
   Links inside a preview open in another tab.
 - **CSV/TSV table view** with row numbers and zebra rows (RFC 4180 quoted fields).
 - **Line numbers** that follow word wrap, plus wrap and auto-save toggles.
+- **Find and replace** with `Ctrl/Cmd+F`: literal, case toggle, match count,
+  wrap-around next/previous, replace one or all.
+- **Tab / Shift+Tab indent**, and `Ctrl/Cmd+/` toggles a line comment.
 - **Folder browser** — click any breadcrumb segment to browse, with folders and
   files colour-coded. One Browse tab, no tab per folder.
 - **Workspace tree** — the session workspace in a collapsible sidebar, loaded one

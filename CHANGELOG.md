@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1
+
+- **Find and replace** — `Ctrl/Cmd+F`, or **Find in file…** in the menu. Literal
+  matching (a query is text, never a pattern), case toggle, `3 of 17`, previous
+  and next with wraparound, replace one or all. Matches are recomputed from the
+  buffer on every keystroke, so a stale span can never be replaced.
+- **Tab indents and Shift+Tab outdents.** Tab used to move focus out of the
+  textarea, which is broken for code. A selection indents every line it touches
+  and skips blank lines; a selection ending at a line start does not take the
+  line below with it.
+- **`Ctrl/Cmd+/` comments or uncomments the selected lines**, with the token the
+  format actually uses (`//`, `#`, `--`). Files without line comments — JSON,
+  CSS, Markdown — say so rather than writing something invalid.
+
 ## 0.4.0
 
 - **Compare with disk.** When the agent changes a file that is open here, the
