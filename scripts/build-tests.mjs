@@ -5,9 +5,11 @@ import { mkdir, rm } from "node:fs/promises";
 // loader. Each module is bundled on its own, so relative imports carry over.
 const outdir = "test/.build";
 const entries = [
+  "codes",
   "paths",
   "links",
   "tabs",
+  "report",
   "status",
   "fs-core",
   "view",

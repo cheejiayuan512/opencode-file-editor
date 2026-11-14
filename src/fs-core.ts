@@ -10,9 +10,24 @@ import {
 } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
+import { codeMessage, type FsCode } from "./codes"
 
 // Anything above this is not something a textarea should try to hold.
 export const MAX_BYTES = 2 * 1024 * 1024
+
+/**
+ * A failure this plugin named. The code is also in the message, because that is
+ * the only part the Ipc bridge carries to the window; see `codes.ts`.
+ */
+export class FsError extends Error {
+  readonly code: FsCode
+
+  constructor(code: FsCode) {
+    super(codeMessage(code))
+    this.name = "FsError"
+    this.code = code
+  }
+}
 
 export function resolvePath(path: string, base: string) {
   let p = path.trim()
@@ -78,9 +93,9 @@ export function decodeText(raw: Buffer) {
       raw.subarray(start),
     )
   } catch {
-    throw new Error("INVALID_UTF8")
+    throw new FsError("INVALID_UTF8")
   }
-  if (decoded.includes("\0")) throw new Error("BINARY")
+  if (decoded.includes("\0")) throw new FsError("BINARY")
 
   const eol = decoded.includes("\r\n") ? "crlf" : "lf"
   return { text: decoded.replace(/\r\n?/g, "\n"), eol, bom }
@@ -88,8 +103,8 @@ export function decodeText(raw: Buffer) {
 
 export async function readTextFile(path: string): Promise<ReadResult> {
   const info = await stat(path)
-  if (!info.isFile()) throw new Error("NOT_FILE")
-  if (info.size > MAX_BYTES) throw new Error("TOO_LARGE")
+  if (!info.isFile()) throw new FsError("NOT_FILE")
+  if (info.size > MAX_BYTES) throw new FsError("TOO_LARGE")
   const decoded = decodeText(await readFile(path))
   return {
     text: decoded.text,
@@ -153,20 +168,26 @@ export async function writeTextFile(
   text: string,
   expected: string | null,
 ): Promise<WriteResult> {
-  if (Buffer.byteLength(text, "utf8") > MAX_BYTES) throw new Error("TOO_LARGE")
+  if (Buffer.byteLength(text, "utf8") > MAX_BYTES) throw new FsError("TOO_LARGE")
 
   let existing: ReadResult | undefined
   try {
     existing = await readTextFile(path)
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === "ENOENT" && expected !== null)
-      throw new Error("EXTERNAL_CHANGE")
-    if (code !== "ENOENT" && !String(error).includes("TOO_LARGE")) throw error
+    // An oversized file is replaced: the panel never opened it, so the caller
+    // has no baseline to compare against. Anything else — a directory, binary
+    // content, permissions — is not ours to write over.
+    if (error instanceof FsError) {
+      if (error.code !== "TOO_LARGE") throw error
+    } else if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (expected !== null) throw new FsError("EXTERNAL_CHANGE")
+    } else {
+      throw error
+    }
   }
 
   if (expected !== null && existing && existing.text !== expected) {
-    throw new Error("EXTERNAL_CHANGE")
+    throw new FsError("EXTERNAL_CHANGE")
   }
 
   // Keep the file's own convention rather than rewriting every line ending.

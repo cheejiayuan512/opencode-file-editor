@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { FS_CODES } from "./.build/codes.mjs";
 import { BASES, RELATIVES } from "./fixtures/paths.mjs";
 
 const source = readFileSync("src/gui.tsx", "utf8");
@@ -9,9 +10,11 @@ const source = readFileSync("src/gui.tsx", "utf8");
 // bundle swaps Node builtins for an inert stub, so one `node:path` call turns
 // into the literal string "[inert module node:path]" at runtime.
 const RENDERER_MODULES = [
+  "codes",
   "paths",
   "links",
   "tabs",
+  "report",
   "status",
   "view",
   "recent",
@@ -97,6 +100,28 @@ test("the + menu shows the panel instead of toggling the region closed", () => {
 
 test("the contract id carries a version suffix", () => {
   assert.match(source, /id: "file-editor\.fs\.v\d+"/);
+});
+
+test("fs-core names its failures instead of throwing bare errors", () => {
+  // The window only receives an error's message across Ipc, so the code has to
+  // be in the message. A bare `throw new Error("TOO_LARGE")` still works by
+  // accident until something else in the message mentions the word.
+  const fsCore = readFileSync("src/fs-core.ts", "utf8");
+  assert.equal(
+    /new Error\(/.test(fsCore),
+    false,
+    "src/fs-core.ts throws a bare Error; use FsError so the window can read the code",
+  );
+
+  const thrown = [...fsCore.matchAll(/new FsError\("([A-Z_]+)"\)/g)].map(
+    (match) => match[1],
+  );
+  assert.ok(thrown.length > 0, "no FsError found — this guard has gone stale");
+  for (const code of thrown)
+    assert.ok(
+      FS_CODES.includes(code),
+      `src/fs-core.ts throws ${code}, which src/codes.ts does not declare`,
+    );
 });
 
 test("the shared path fixtures cover both path families", () => {

@@ -25,6 +25,7 @@ import {
   type PanelFrame,
   type PanelTab,
   type SessionRef,
+  type System,
   type Ui,
   type UiMenuEntry,
 } from "@opencode/plugin/gui";
@@ -58,6 +59,7 @@ import {
   tabKey,
 } from "./tabs";
 import { explain, isExternalChange } from "./status";
+import { composeReport, formatReport } from "./report";
 import {
   crumbTrail,
   delimiterFor,
@@ -78,7 +80,7 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v34";
+const GUI_VERSION = "gui v35";
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -431,21 +433,18 @@ function Browser(props: {
 /**
  * The facts a bug report needs and a screenshot cannot carry. `GUI_VERSION` and
  * the contract id say whether the report is about a build that already has the
- * fix; the status line is where the actual error message ends up. Nobody should
- * have to be asked for these one at a time.
+ * fix; the status line is where the actual error message ends up.
  */
-function diagnostics(
+function buildReport(
   facts: Record<string, string | number | boolean>,
 ): string {
-  const lines = [
-    `opencode-file-editor ${GUI_VERSION}`,
-    `contract ${Fs.id}`,
-    `platform ${navigator.platform || "unknown"}`,
-  ];
-  for (const [key, value] of Object.entries(facts))
-    lines.push(`${key} ${String(value) || "(empty)"}`);
-  lines.push(`user agent ${navigator.userAgent}`);
-  return lines.join("\n");
+  return formatReport({
+    version: GUI_VERSION,
+    contract: Fs.id,
+    platform: navigator.platform || "",
+    userAgent: navigator.userAgent,
+    facts,
+  });
 }
 
 function Editor(props: {
@@ -456,6 +455,7 @@ function Editor(props: {
   browseFolder: (path: string) => void;
   openSettings: () => void;
   ui: Ui;
+  system: System;
 }) {
   const launcher = !props.path;
 
@@ -877,6 +877,18 @@ function Editor(props: {
 
   onCleanup(() => clearTimeout(measureTimer));
 
+  // Both diagnostics actions read the same block, so a copy and a report can
+  // never disagree about what happened.
+  const report = () =>
+    buildReport({
+      file: props.path,
+      base: props.base(),
+      view: view(),
+      state: conflict() ? "conflict" : dirty() ? "dirty" : "clean",
+      size: `${text().length} chars`,
+      status: status(),
+    });
+
   const menuItems = (): UiMenuEntry[] => [
     { label: "Save file", onSelect: () => void save() },
     {
@@ -893,9 +905,7 @@ function Editor(props: {
     {
       label: "Copy relative path",
       onSelect: () => {
-        void navigator.clipboard.writeText(
-          relativeTo(props.base(), props.path),
-        );
+        void props.system.copy(relativeTo(props.base(), props.path));
         setStatus("Copied path.");
       },
     },
@@ -904,18 +914,40 @@ function Editor(props: {
       // what error" without a round trip through the reporter.
       label: "Copy diagnostics",
       onSelect: () => {
-        const report = diagnostics({
-          file: props.path,
-          base: props.base(),
-          view: view(),
-          state: conflict() ? "conflict" : dirty() ? "dirty" : "clean",
-          size: `${text().length} chars`,
-          status: status(),
-        });
-        void navigator.clipboard.writeText(report).then(
+        void props.system.copy(report()).then(
           () => setStatus("Copied diagnostics - paste them into the report."),
           () =>
             setStatus("Could not copy diagnostics: the clipboard is blocked."),
+        );
+      },
+    },
+    {
+      // One step from a failure to a report that carries the diagnostics. The
+      // clipboard is the fallback, not the plan: a reporter should not have to
+      // find the issue tracker first.
+      label: "Report a problem",
+      onSelect: () => {
+        let url = "";
+        try {
+          url = composeReport(report()).url;
+        } catch {
+          // Never let building the link be the failure.
+        }
+        if (url) {
+          try {
+            props.system.openExternal(url);
+            setStatus("Opened a GitHub issue with the diagnostics filled in.");
+            return;
+          } catch {
+            // A host without a browser: fall through to the clipboard.
+          }
+        }
+        void props.system.copy(report()).then(
+          () =>
+            setStatus(
+              "Could not open the browser; diagnostics copied instead.",
+            ),
+          () => setStatus("Could not open the browser or the clipboard."),
         );
       },
     },
@@ -2211,6 +2243,7 @@ export default Plugin.define({
                     ))
                   }
                   ui={ctx.ui}
+                  system={ctx.system}
                 />
               )}
             </Workspace>

@@ -48,7 +48,8 @@ open them to try the panel.</sub>
 - **Recent files** on the **Open file** tab.
 - **Reveal in file manager** and **copy relative path**.
 - **Copy diagnostics** — the build marker, contract id, platform, file and last
-  status line on the clipboard, so a bug report can be acted on.
+  status line on the clipboard; **Report a problem** opens an issue with the
+  same block already filled in.
 - Opens file links from chat in a tab instead of the read-only preview.
 
 ## Install

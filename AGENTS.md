@@ -36,11 +36,13 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 
 ## Testing
 
-`npm test` builds first, then runs 115 assertions with no app running:
+`npm test` builds first, then runs 122 assertions with no app running:
 
 | File | Guards |
 |---|---|
 | `paths`, `links`, `tabs`, `status`, `view`, `recent`, `browse`, `tree` | pure logic: path joining, link matching, tab ids, table parsing, wrapped-line gutters, listing caps, sorting, tree rows and keyboard picks |
+| `codes` | a failure code is read from the `FILE_EDITOR:` marker, never from a word that a path or message happens to contain |
+| `report` | the diagnostics block, the prefilled issue link, a single-line title, and the length cap GitHub accepts |
 | `fs-core` | atomic writes, stale-baseline refusal, BOM/CRLF, size and UTF-8 limits, and file identity (`samePath` by device and inode) |
 | `contract` | the Ipc id is versioned, and every declared method is provided by `main()` |
 | `architecture` | renderer modules import no Node builtins, every `layout.open` uses `tab: "select"`, the panel uses `wide`, refs are attached |
@@ -94,6 +96,12 @@ a broken build once.
    leading `/` in 0.2.1 broke clicking a file on macOS and nobody saw it. Add
    the base to `BASES` and let the matrix exercise it; `test/architecture.test.mjs`
    fails if a test file hardcodes one.
+8. **Name a failure, do not describe it.** `src/fs-core.ts` throws `FsError`,
+   whose message is `FILE_EDITOR:<CODE>` from `src/codes.ts`; the window reads
+   that marker with `fsCode`. A bare `throw new Error("TOO_LARGE")` is matched
+   by whatever text the message contains, so a path could decide what a failure
+   means. `test/architecture.test.mjs` fails a bare `new Error(` in fs-core, and
+   `status.ts` will not compile with a code that has no advice.
 
 ## Behaviour worth preserving
 
@@ -111,9 +119,9 @@ a broken build once.
   volume are one file with one buffer. Comparing paths as text gives two tabs,
   two drafts and a silent last-save-wins.
 - A failed read or write is logged in the main process (`io()` in `main()`), and
-  **Copy diagnostics** in the editor menu puts the build marker, contract id,
-  platform, file and last status line on the clipboard. A report without those
-  costs a round trip for each.
+  **Copy diagnostics** / **Report a problem** in the editor menu carry the build
+  marker, contract id, platform, file and last status line. A report without
+  those costs a round trip for each.
 
 ## Publishing
 

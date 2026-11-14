@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0
+
+- **Report a problem** in the editor menu opens a GitHub issue with the
+  diagnostics already filled in: build marker, contract id, platform, file,
+  view, size and the last status line, above two questions. Copy diagnostics
+  still copies the same block, and is the fallback when there is no browser.
+- **Failures are named instead of guessed.** Main throws `FILE_EDITOR:<CODE>`,
+  and the window reads the marker rather than searching the message for a word.
+  `EACCES` on `notes/TOO_LARGE.md` was reported as "File is over 2 MB"; it now
+  says what happened. An unnamed failure shows its first line instead of a
+  stack, and `BINARY` has advice for the first time.
+- **`verify:live` retries** a 404 or a missing plugin three times before failing,
+  and prints the plugins the app did list. It reported two false failures while
+  the app was reloading.
+- Clipboard writes go through the host's `ctx.system.copy`, not
+  `navigator.clipboard`.
+
 ## 0.2.6
 
 - **Fixed: one file under two spellings was two buffers.** Tabs and drafts were

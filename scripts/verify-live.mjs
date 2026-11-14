@@ -8,9 +8,16 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 const PLUGIN_ID = "file-editor";
 const strict = process.argv.includes("--strict");
+
+// A plugin-directory change makes the app reload, and for a moment the plugin
+// list omits the plugin and the GUI endpoint answers 404. That produced false
+// failures; retrying is what separates "still reloading" from "broken".
+const ATTEMPTS = 3;
+const backoff = (attempt) => sleep(400 * attempt);
 
 function password() {
   const path = join(homedir(), ".config", "opencode", "service.json");
@@ -79,21 +86,47 @@ try {
 const auth = `Basic ${Buffer.from(`opencode:${password()}`).toString("base64")}`;
 
 async function get(path) {
-  return fetch(`${url}${path}`, { headers: { Authorization: auth } });
+  let last = "";
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(`${url}${path}`, {
+        headers: { Authorization: auth },
+      });
+      // 404 is what a reload answers with. Anything else — including 401 for a
+      // wrong password — is an answer, and repeating it would only hide it.
+      if (response.status !== 404) return response;
+      last = `HTTP ${response.status}`;
+    } catch (error) {
+      last = error.message;
+    }
+    if (attempt < ATTEMPTS) await backoff(attempt);
+  }
+  throw new Error(`${last || "no response"} after ${ATTEMPTS} attempts`);
 }
 
 let plugin;
+let listed = "nothing";
 try {
-  const response = await get(`/api/plugin`);
-  if (response.status === 401) throw new Error("unauthorized");
-  const body = await response.json();
-  plugin = body.data?.find((entry) => entry.id === PLUGIN_ID);
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+    const response = await get(`/api/plugin`);
+    if (response.status === 401) throw new Error("unauthorized");
+    const body = await response.json();
+    const entries = body.data ?? [];
+    listed = entries.map((entry) => entry.id).join(", ") || "nothing";
+    plugin = entries.find((entry) => entry.id === PLUGIN_ID);
+    if (plugin) break;
+    if (attempt < ATTEMPTS) await backoff(attempt);
+  }
 } catch (error) {
   console.log(`skipped: OpenCode desktop is not reachable (${error.message})`);
   process.exit(strict ? 1 : 0);
 }
 
-check("the plugin is registered", Boolean(plugin));
+check(
+  "the plugin is registered",
+  Boolean(plugin),
+  plugin ? "" : `the app listed ${listed}`,
+);
 if (!plugin) {
   process.exit(1);
 }
