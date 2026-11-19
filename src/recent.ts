@@ -17,7 +17,7 @@ export function pushRecent(
 export function parseRecent(raw: string | null, limit = RECENT_LIMIT) {
   if (!raw) return [];
   try {
-    const value = JSON.parse(raw);
+    const value: unknown = JSON.parse(raw);
     if (!Array.isArray(value)) return [];
     return value
       .filter(

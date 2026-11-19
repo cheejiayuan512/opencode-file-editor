@@ -4,6 +4,15 @@ on:
   push:
   pull_request:
 
+# The suite only reads the repository. Anything that needs to write (publishing)
+# has its own workflow and its own permissions.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     # 0.2.1 shipped a POSIX-only bug because every test base was a Windows path.
@@ -15,6 +24,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,6 +33,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+
+      # Lint is a bug finder, not a formatter: one OS is enough, and running it
+      # beside the matrix would only triple the same answer.
+      - name: Lint
+        if: runner.os == 'Linux'
+        run: npm run lint
+
       - run: npm test
 
       # Report-only: the number is a baseline to compare against, not a gate.
@@ -31,3 +48,18 @@ jobs:
       - name: Coverage
         if: runner.os == 'Linux'
         run: npm run test:coverage
+
+  minimum-node:
+    # `engines` says Node 20, but the matrix above only runs 22. Without this
+    # job a 22-only API would ship while the package claims to support 20.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

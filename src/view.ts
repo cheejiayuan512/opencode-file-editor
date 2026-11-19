@@ -68,7 +68,6 @@ export function parseTable(
   let field = "";
   let quoted = false;
   let index = 0;
-  let truncated = false;
 
   const endField = () => {
     row.push(field);
@@ -99,7 +98,10 @@ export function parseTable(
       continue;
     }
 
-    if (char === '"') {
+    // A quote opens a field only at its start. In an unquoted field it is
+    // literal text: `He said "hi",x` is two fields, and the quotes belong to
+    // the first one. Treating any quote as an opener used to delete it.
+    if (char === '"' && field === "") {
       quoted = true;
       index += 1;
       continue;
@@ -112,10 +114,10 @@ export function parseTable(
     if (char === "\n") {
       endRow();
       index += 1;
-      if (rows.length > limit) {
-        truncated = true;
-        break;
-      }
+      // `rows` includes the header, so this is "more data rows than kept".
+      // Comparing against `limit` alone reported truncation for a file that
+      // had exactly `limit` rows.
+      if (rows.length > limit + 1) break;
       continue;
     }
     if (char === "\r") {
@@ -127,12 +129,15 @@ export function parseTable(
     index += 1;
   }
 
-  if (!truncated && (field.length > 0 || row.length > 0)) endRow();
+  // A final row without a trailing newline still counts, and still has to be
+  // measured against the limit; the early break only runs on a completed row.
+  if (field.length > 0 || row.length > 0) endRow();
 
   const [header = [], ...body] = rows;
+  // `body` holds at most `limit + 1` completed rows because of the break.
   return {
     header,
-    rows: truncated ? body.slice(0, limit) : body,
-    truncated,
+    rows: body.slice(0, limit),
+    truncated: body.length > limit,
   };
 }

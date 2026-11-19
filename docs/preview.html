@@ -205,6 +205,72 @@
       .str { color: #a5d6a7; }
       .com { color: #6f7a86; }
       .fn { color: #82aaff; }
+
+      /* The conflict bar and the line diff */
+      .conflict {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 12px;
+      }
+      .conflict .warn { color: var(--amber); }
+      .conflict .ctext { flex: 1; min-width: 0; }
+      .cbtn {
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--text);
+        background: transparent;
+        border: 1px solid transparent;
+        padding: 3px 9px;
+        border-radius: 5px;
+      }
+      .cbtn.on { background: rgba(255, 255, 255, 0.1); border-color: var(--line); }
+      .cbtn.danger { color: #ff8f8f; }
+      .dhead {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-bottom: 1px solid var(--line);
+        font-size: 11.5px;
+      }
+      .dhead .dtitle { color: var(--dim); }
+      .dhead .add-c { color: #7fd18b; }
+      .dhead .del-c { color: #ff8f8f; }
+      .dhead .spacer { flex: 1; }
+      .diff {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.65;
+        padding-top: 2px;
+      }
+      .drow { display: flex; min-width: 0; white-space: pre; }
+      .drow.add { background: rgba(63, 185, 80, 0.14); }
+      .drow.del { background: rgba(248, 81, 73, 0.14); }
+      .drow .ln {
+        width: 46px;
+        flex-shrink: 0;
+        text-align: right;
+        padding: 0 6px;
+        color: var(--faint);
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+      }
+      .drow .mark { width: 18px; flex-shrink: 0; text-align: center; color: var(--dim); }
+      .drow .src { overflow: hidden; text-overflow: ellipsis; padding-right: 12px; }
+      .gaprow {
+        padding: 1px 10px;
+        font-size: 11px;
+        color: var(--faint);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
       .md { flex: 1; padding: 12px 16px; font-size: 12.5px; line-height: 1.7; overflow: hidden; }
       .md h1 { font-size: 18px; margin: 0 0 8px; }
       .md h2 { font-size: 13.5px; margin: 14px 0 4px; }
@@ -515,6 +581,68 @@ git push origin v0.2.0</pre>
             </div>
           </div>
           <div class="status"><span class="dot">●</span> Autosaved 18:42:10</div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 5: the conflict bar and the line diff, after the agent rewrote the file -->
+    <div class="shot" id="diff" role="img" aria-label="The conflict bar with Compare, and a line diff of the disk against the buffer">
+      <div class="tabs">
+        <div class="tab">Open file</div>
+        <div class="tab active">gui.tsx <span class="x">●</span></div>
+        <div class="tab">notes.md <span class="x">×</span></div>
+        <div class="plus">+</div>
+      </div>
+      <div class="main">
+        <aside class="rail" data-active="src/gui.tsx">
+          <div class="rail-head">
+            <span class="rail-title">app</span>
+            <span class="rail-actions">⟳ ‹</span>
+          </div>
+          <div class="rail-body"></div>
+        </aside>
+        <section class="pane">
+          <div class="head">
+            <div class="crumbs">
+              <span class="up">Users</span><span class="sep">›</span>
+              <span class="up">you</span><span class="sep">›</span>
+              <span class="up">app</span><span class="sep">›</span>
+              <span class="up">src</span><span class="sep">›</span>
+              <span class="file">gui.tsx</span>
+            </div>
+            <div class="dots">⋯</div>
+          </div>
+
+          <div class="conflict">
+            <span class="warn">⚠</span>
+            <span class="ctext">Changed on disk since you opened it.</span>
+            <button class="cbtn on">Compare</button>
+            <button class="cbtn">Reload</button>
+            <button class="cbtn danger">Overwrite</button>
+          </div>
+
+          <div class="dhead">
+            <span class="dtitle">On disk → buffer:</span>
+            <span class="add-c">+2</span>
+            <span class="del-c">−1</span>
+            <span class="spacer"></span>
+            <button class="cbtn">Close</button>
+          </div>
+
+          <div class="diff">
+            <div class="gaprow">⋯ 38 unchanged lines</div>
+            <div class="drow"><span class="ln">40</span><span class="ln">40</span><span class="mark"></span><span class="src"><span class="kw">const</span> menuItems = (): UiMenuEntry[] =&gt; [</span></div>
+            <div class="drow"><span class="ln">41</span><span class="ln">41</span><span class="mark"></span><span class="src">  { label: <span class="str">"Save file"</span>, onSelect: () =&gt; <span class="kw">void</span> save() },</span></div>
+            <div class="drow del"><span class="ln">42</span><span class="ln"></span><span class="mark">−</span><span class="src">  { label: <span class="str">"Reload"</span>, onSelect: () =&gt; <span class="kw">void</span> load(path) },</span></div>
+            <div class="drow add"><span class="ln"></span><span class="ln">42</span><span class="mark">+</span><span class="src">  { label: <span class="str">"Reload"</span>, onSelect: () =&gt; <span class="kw">void</span> load(path, base, <span class="kw">true</span>) },</span></div>
+            <div class="drow add"><span class="ln"></span><span class="ln">43</span><span class="mark">+</span><span class="src">  { label: <span class="str">"Compare with disk"</span>, onSelect: compareWithDisk },</span></div>
+            <div class="drow"><span class="ln">43</span><span class="ln">44</span><span class="mark"></span><span class="src">  { label: <span class="str">"Save as…"</span>, onSelect: saveAs },</span></div>
+            <div class="drow"><span class="ln">44</span><span class="ln">45</span><span class="mark"></span><span class="src">  { type: <span class="str">"separator"</span> },</span></div>
+            <div class="drow"><span class="ln">45</span><span class="ln">46</span><span class="mark"></span><span class="src">  { label: <span class="str">"Copy relative path"</span>, onSelect: copyPath },</span></div>
+            <div class="gaprow">⋯ 120 unchanged lines</div>
+          </div>
+
+          <div class="status"><span class="dot">●</span> On disk vs this buffer: 2 added, 1 removed.</div>
         </section>
       </div>
     </div>

@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: the table cap was off by one.** A CSV/TSV with exactly as many rows
+  as the cap claimed it had been truncated, and a final row without a trailing
+  newline could slip past the cap entirely. The limit now counts data rows and
+  measures the last row too.
+- **Fixed: a quote in an unquoted field was deleted.** `He said "hi",x` lost the
+  quotes and could shift the columns. A quote now opens a field only at its
+  start, as RFC 4180 requires.
+- **Fixed: a workspace at `/` could not produce a relative path.**
+  `relativeTo("/", "/a")` built a `//` prefix and returned `/a`.
+- **Fixed: a path ending in a space changed on its second normalization.**
+  `canonicalPath` trimmed its input, so a legal POSIX name like `note ` became
+  `note` when an already-canonical path was canonicalized again — a different
+  file. Trimming now happens only at the input boundary.
+- **Tooling: the checks now cover the parts the examples missed.** ESLint with
+  type-aware and Solid rules (and `--max-warnings=0`), `noUncheckedIndexedAccess`
+  plus stricter switch/index flags, property tests for the table, find, edit,
+  diff, path and tokenizer helpers, a corpus of the repository's own files, and
+  a runtime check that the installed host still exports what the panel imports.
+  CI lints, tests the minimum Node version, runs CodeQL and reviews dependency
+  diffs; nightly jobs raise the fuzz budget and file an issue with the failing
+  seed, or report a host release that broke the suite. Bug reports now use an
+  issue form that requires the diagnostics block.
+
 ## 0.5.2
 
 A bug check over the four feature releases, not a new feature.

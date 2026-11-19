@@ -14,7 +14,12 @@ export function isAbsolutePath(path: string) {
 
 /** Joins `path` onto `base` and normalizes separators; keeps absolute input. */
 export function canonicalPath(path: string, base: string) {
-  const value = path.trim().replace(/\\/g, "/");
+  // Whitespace-only input means "nothing typed". Anything else keeps its
+  // spaces: a trailing space is a legal file name on POSIX, and trimming it
+  // made a second call on the first call's own output return a different path.
+  // The entry points that take typed input trim it themselves.
+  const separated = path.replace(/\\/g, "/");
+  const value = separated.trim() === "" ? "" : separated;
   if (!value) return "";
   if (isAbsolutePath(value)) return value;
 
@@ -57,7 +62,9 @@ export function relativeTo(base: string, path: string) {
     value.length > 1 && value[1] === ":"
       ? `${value[0]!.toLowerCase()}${value.slice(1)}`
       : value;
-  const prefix = `${root}/`;
+  // A workspace at the filesystem root already ends in the separator; adding
+  // another made the prefix "//" and no file matched, so none were relative.
+  const prefix = root === "/" ? "/" : `${root}/`;
   if (fold(target).startsWith(fold(prefix))) return target.slice(prefix.length);
   return path;
 }

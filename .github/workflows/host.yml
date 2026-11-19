@@ -10,9 +10,14 @@ on:
     - cron: "17 4 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   latest-host:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,3 +33,37 @@ jobs:
 
       - run: npm run typecheck
       - run: npm test
+
+      # A scheduled failure only emails the last committer, which is easy to
+      # miss. The issue is the durable record, and the title is the dedupe key.
+      - name: File an issue when the host check fails
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Nightly host check failed: @opencode/plugin@latest"
+          existing=$(gh issue list --state open \
+            --search "\"${title}\" in:title" --json number --jq 'length')
+          if [ "$existing" != "0" ]; then
+            echo "An issue for this failure is already open."
+            exit 0
+          fi
+          body=$(cat <<EOF
+          The nightly check against the newest published \`@opencode/plugin\` failed.
+
+          - Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Host installed: \`@opencode/plugin@latest\`
+
+          This usually means a host release changed an API the plugin builds on.
+          Reproduce locally:
+
+          \`\`\`sh
+          npm install --no-save --no-package-lock @opencode/plugin@latest
+          npm run typecheck && npm test
+          \`\`\`
+
+          Fix by widening the dependency deliberately, or by pinning back to the
+          last host that passes.
+          EOF
+          )
+          gh issue create --title "$title" --label bug --body "$body"
