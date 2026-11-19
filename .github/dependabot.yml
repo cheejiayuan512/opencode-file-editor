@@ -10,6 +10,14 @@ updates:
     groups:
       dev-tooling:
         dependency-type: development
+    ignore:
+      # typescript-eslint pins TypeScript to "<6.1.0". A TypeScript major on its
+      # own produces an uninstallable graph: npm ci fails with ERESOLVE before
+      # any job runs. Group #7 was exactly that, so let Dependabot skip the
+      # major and move typescript when the linter raises its ceiling.
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: "/"
