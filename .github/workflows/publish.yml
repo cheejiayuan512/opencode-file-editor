@@ -21,9 +21,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
-  # Creating the GitHub Release writes to the repository's releases.
-  contents: write
+  contents: read
 
 jobs:
   # The tag is only worth publishing if the suite passes where users run it. The
@@ -35,6 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,6 +47,11 @@ jobs:
   publish:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Only this job needs the OIDC token and the release write.
+    permissions:
+      id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
 

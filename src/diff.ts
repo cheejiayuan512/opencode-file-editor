@@ -72,12 +72,14 @@ function diffMiddle(
   const table = new Uint32Array((n + 1) * width);
   for (let i = n - 1; i >= 0; i -= 1) {
     for (let j = m - 1; j >= 0; j -= 1) {
+      // Every index is inside the (n + 1) x (m + 1) table, so the assertions
+      // are bounds the loops already guarantee.
       table[i * width + j] =
         before[i] === after[j]
-          ? table[(i + 1) * width + j + 1] + 1
+          ? table[(i + 1) * width + j + 1]! + 1
           : Math.max(
-              table[(i + 1) * width + j],
-              table[i * width + j + 1],
+              table[(i + 1) * width + j]!,
+              table[i * width + j + 1]!,
             );
     }
   }
@@ -86,19 +88,19 @@ function diffMiddle(
   let j = 0;
   while (i < n && j < m) {
     if (before[i] === after[j]) {
-      rows.push({ kind: "same", text: before[i], oldNo: oldNo++, newNo: newNo++ });
+      rows.push({ kind: "same", text: before[i]!, oldNo: oldNo++, newNo: newNo++ });
       i += 1;
       j += 1;
-    } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
-      rows.push({ kind: "removed", text: before[i], oldNo: oldNo++ });
+    } else if (table[(i + 1) * width + j]! >= table[i * width + j + 1]!) {
+      rows.push({ kind: "removed", text: before[i]!, oldNo: oldNo++ });
       i += 1;
     } else {
-      rows.push({ kind: "added", text: after[j], newNo: newNo++ });
+      rows.push({ kind: "added", text: after[j]!, newNo: newNo++ });
       j += 1;
     }
   }
-  while (i < n) rows.push({ kind: "removed", text: before[i++], oldNo: oldNo++ });
-  while (j < m) rows.push({ kind: "added", text: after[j++], newNo: newNo++ });
+  while (i < n) rows.push({ kind: "removed", text: before[i++]!, oldNo: oldNo++ });
+  while (j < m) rows.push({ kind: "added", text: after[j++]!, newNo: newNo++ });
   return rows;
 }
 
@@ -125,7 +127,7 @@ export function diffLines(before: string, after: string): DiffRow[] {
 
   const rows: DiffRow[] = [];
   for (let k = 0; k < prefix; k += 1)
-    rows.push({ kind: "same", text: old[k], oldNo: k + 1, newNo: k + 1 });
+    rows.push({ kind: "same", text: old[k]!, oldNo: k + 1, newNo: k + 1 });
 
   rows.push(
     ...diffMiddle(
@@ -139,7 +141,7 @@ export function diffLines(before: string, after: string): DiffRow[] {
   for (let k = old.length - suffix; k < old.length; k += 1)
     rows.push({
       kind: "same",
-      text: old[k],
+      text: old[k]!,
       oldNo: k + 1,
       newNo: k + 1 - old.length + next.length,
     });
@@ -189,7 +191,7 @@ export function toDisplay(
       out.push({ kind: "gap", count: gap });
       gap = 0;
     }
-    out.push(rows[index]);
+    out.push(rows[index]!);
   }
   if (gap > 0) out.push({ kind: "gap", count: gap });
 

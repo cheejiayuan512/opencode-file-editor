@@ -29,14 +29,16 @@ another package claiming it would collide, so treat it as fixed.
 npm install
 npm run build        # gui-experimental.cjs at the package root
 npm test             # builds, then runs every test
+npm run test:fuzz    # property tests only; FUZZ_RUNS / FUZZ_SEED override
 npm run typecheck
+npm run lint         # ESLint, --max-warnings=0
 npm run verify:live  # asks the running desktop app what it actually loaded
-npm publish          # prepublishOnly runs typecheck, build and tests
+npm publish          # prepublishOnly runs typecheck, lint, build and tests
 ```
 
 ## Testing
 
-`npm test` builds first, then runs 177 assertions with no app running:
+`npm test` builds first, then runs 228 assertions with no app running:
 
 | File | Guards |
 |---|---|
@@ -53,11 +55,21 @@ npm publish          # prepublishOnly runs typecheck, build and tests
 | `bundle` | file-name layout (no `exports`), version marker matches the source, parses as CommonJS |
 | `release` | a tag that disagrees with `package.json`, or has no CHANGELOG heading, is refused |
 | `publish` | a real `npm pack` ships only the needed files and stays small |
+| `property-paths`, `property-table`, `property-find`, `property-edit`, `property-diff`, `property-highlight` | generated inputs: table write/parse round-trips, exact row limits, non-overlapping matches, indent/outdent inverses, diff reconstruction, path idempotence and `..` guards |
+| `corpus` | the repository's own source and `docs/samples` survive the tokenizer and the table reader |
+| `host-contract` | the installed host still exports every runtime symbol `gui.tsx` imports |
 
 `npm run test:coverage` reports coverage for the modules the tests load: the
-pure helpers and `fs-core`. It says nothing about `src/gui.tsx`, which cannot
-run outside the host — that half is covered by `verify:live` and the bundle
-tests instead. The number is a baseline, not a gate.
+pure helpers and `fs-core`. It excludes the test files themselves. It says
+nothing about `src/gui.tsx`, which never loads there and is therefore absent
+from the table rather than shown at 0% — that half is covered by `verify:live`
+and the bundle tests instead. The number is a baseline, not a gate.
+
+Property tests run 200 cases per property by default. `FUZZ_RUNS` raises that
+and `FUZZ_SEED` pins the sequence; the nightly fuzz workflow runs 5000 cases
+with a fresh seed and files an issue carrying the seed when it fails. A
+failure prints both the seed and the shrunk counterexample — keep both, then
+turn the case into a fixed example test.
 
 `npm run verify:live` asks the running app what it actually loaded:
 
@@ -107,6 +119,26 @@ a broken build once.
    means. `test/architecture.test.mjs` fails a bare `new Error(` in fs-core, and
    `status.ts` will not compile with a code that has no advice.
 
+9. **A pure helper that parses or edits text needs a property, not only
+   examples.** `test/property-*.test.mjs` found the `parseTable` row-limit
+   off-by-one, the deleted quote in an unquoted field, and the root-workspace
+   `relativeTo` prefix that no hand-written case covered. Properties assert
+   what must hold for every input (round-trip, reconstruction, inverse), so a
+   new branch is exercised instead of remembered.
+
+10. **Keep `noUncheckedIndexedAccess` on.** It is what forced the loops in
+    `diff.ts`, `highlight.ts` and `view.ts` to say why an index is in range.
+    Prefer `text.charAt(i)` for strings and a bounded `!` with the invariant in
+    a comment for arrays; do not weaken the flag to silence a site.
+
+11. **`npm run lint` is a gate, not advice.** It fails on warnings. The rules
+    that earn that are `no-floating-promises`, `no-misused-promises`,
+    `switch-exhaustiveness-check`, `solid/no-destructure` and
+    `solid/reactivity` — the last one caught a tab path read outside a tracked
+    scope. When a reactivity warning is genuinely intentional (a per-tab
+    initialization, a host-invoked dialog callback), disable that line with the
+    reason, not the rule.
+
 ## Behaviour worth preserving
 
 - The workspace rail is host-backed: `props.screen.file.tree` loads one folder
@@ -118,6 +150,17 @@ a broken build once.
 - BOM and CRLF are preserved; 2 MB and strict UTF-8 limits are enforced.
 - Directory listings cap at `MAX_ENTRIES` (2000) and report the real total.
 - Files that fail to open are never added to the recent list.
+- `parseTable` counts its limit in data rows (the header is separate), treats a
+  quote as an opener only at the start of a field, and measures a final row that
+  has no trailing newline. Each of those was a real defect: exactly `limit` rows
+  claimed truncation, an unquoted `"` disappeared, and the last row could slip
+  past the cap.
+- `relativeTo` treats a root of `/` as a complete prefix, so a workspace at the
+  filesystem root still produces relative paths.
+- `canonicalPath` does not trim. A trailing space is a legal POSIX file name,
+  and trimming made a second call on an already-canonical path return a
+  different file. Trim typed input at the entry point (`submitPath`, the
+  dialogs), not inside the function every tab key passes through.
 - **File identity comes from the filesystem, not the string.** `samePath`
   compares `dev` and `ino`, so `Foo.ts` and `foo.ts` on a case-insensitive
   volume are one file with one buffer. Comparing paths as text gives two tabs,

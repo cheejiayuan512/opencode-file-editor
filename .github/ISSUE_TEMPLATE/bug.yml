@@ -1,0 +1,83 @@
+name: Bug report
+description: The file editor did something it should not have.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The editor can fill most of this in for you: **⋯ → Report a problem**
+        opens an issue with the diagnostics already in the body. If you are
+        filling this in by hand, **Copy diagnostics** gives you that block.
+
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin version
+      description: The `build:` line in the diagnostics block.
+      placeholder: 0.5.2 / gui v41
+    validations:
+      required: true
+
+  - type: input
+    id: desktop
+    attributes:
+      label: OpenCode Desktop version
+      description: Settings → About, or the diagnostics block.
+      placeholder: 2.2.6
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the block from **Copy diagnostics**.
+      render: text
+      placeholder: |
+        build: gui v41
+        contract: file-editor.fs.v4
+        platform: ...
+        file: ...
+        view: ...
+        size: ...
+        status: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Press ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: The status line and anything in the app log are useful here.
+    validations:
+      required: true

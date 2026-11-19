@@ -273,6 +273,8 @@ function Browser(props: {
   open: (path: string) => void;
   dialogs: Dialogs;
 }) {
+  // The initial folder is a snapshot; every later move goes through read().
+  // eslint-disable-next-line solid/reactivity -- initialization, not a tracked read
   const [cwd, setCwd] = createSignal(props.start());
   const [entries, setEntries] = createSignal<readonly Entry[]>([]);
   const [total, setTotal] = createSignal(0);
@@ -561,6 +563,10 @@ function Editor(props: {
   /** Close this tab, for an action that moved the buffer elsewhere. */
   discard: () => void;
 }) {
+  // This component is mounted once per tab and `props.path` is that tab's
+  // identity, so these reads initialize the signals for this mount. A different
+  // path arrives as a different tab, not as a changed prop.
+  /* eslint-disable solid/reactivity -- per-tab initialization */
   const launcher = !props.path;
 
   const [pathInput, setPathInput] = createSignal(props.path);
@@ -586,8 +592,6 @@ function Editor(props: {
   const [composing, setComposing] = createSignal(false);
   let findInput: HTMLInputElement | undefined;
   let paint: HTMLPreElement | undefined;
-  const [canUndo, setCanUndo] = createSignal(false);
-  const [canRedo, setCanRedo] = createSignal(false);
   const [view, setView] = createSignal<"source" | "preview" | "table">(
     isTablePath(props.path)
       ? "table"
@@ -595,6 +599,7 @@ function Editor(props: {
         ? "preview"
         : "source",
   );
+  /* eslint-enable solid/reactivity */
 
   const autosaveMs = 900;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -638,16 +643,10 @@ function Editor(props: {
     if (!previous || previous.dirty !== nextDirty) bump();
   }
 
-  function syncHistory() {
-    setCanUndo(historyIndex > 0);
-    setCanRedo(historyIndex < history.length - 1);
-  }
-
   function resetHistory(value: string) {
     history = [value];
     historyIndex = 0;
     lastChangeAt = 0;
-    syncHistory();
   }
 
   function recordHistory(value: string, big: boolean) {
@@ -668,7 +667,6 @@ function Editor(props: {
     }
 
     lastChangeAt = now;
-    syncHistory();
   }
 
   function applyHistory(value: string) {
@@ -680,7 +678,6 @@ function Editor(props: {
     setStatus(changed ? "Unsaved changes…" : "Saved state");
     persist();
     if (changed) scheduleAutosave();
-    syncHistory();
   }
 
   function undo() {
@@ -1034,8 +1031,9 @@ function Editor(props: {
     }
     const field = area();
     const from = field?.selectionStart ?? 0;
+    // `list` is non-empty here; findAt is kept >= 0 wherever it is set.
     const match =
-      matchAt(list, from) ?? list[Math.min(findAt(), list.length - 1)];
+      matchAt(list, from) ?? list[Math.min(findAt(), list.length - 1)]!;
     applyEdit({
       text: text().slice(0, match.start) + findReplace() + text().slice(match.end),
       start: match.start + findReplace().length,
@@ -1105,6 +1103,8 @@ function Editor(props: {
 
   /** Write this buffer to another path and move the tab with it. */
   function saveAs() {
+    // The host invokes this callback; the props it reads are current then.
+    // eslint-disable-next-line solid/reactivity -- host-invoked dialog callback
     props.dialogs.open((dialog) => {
       const [target, setTarget] = createSignal(props.path);
       const [message, setMessage] = createSignal("");
@@ -1483,14 +1483,14 @@ function Editor(props: {
                   onInput={(value) => setPathInput(value)}
                   label="File path"
                   placeholder="Path, ~/…, or relative to this session"
-                  onSubmit={submitPath}
+                  onSubmit={() => void submitPath()}
                   class="w-full"
                 />
               </div>
               <props.ui.IconButton
                 icon="open-file"
                 label="Open file"
-                onClick={submitPath}
+                onClick={() => void submitPath()}
                 disabled={busy()}
               />
             </div>
@@ -2593,6 +2593,9 @@ function TreeRail(props: {
 
   // Read the host's loaded folders and their expansion on every render, so a
   // toggle, a finished load or a filesystem change updates the rows.
+  // flattenTree calls these callbacks synchronously inside the memo; the rule
+  // cannot see through the higher-order call.
+  /* eslint-disable solid/reactivity -- callbacks execute inside this memo */
   const tree = createMemo(() =>
     flattenTree(
       (path) =>
@@ -2606,6 +2609,7 @@ function TreeRail(props: {
       (path) => props.file.tree.state(path),
     ),
   );
+  /* eslint-enable solid/reactivity */
 
   async function loadRoot(force = false) {
     setRootBusy(true);
@@ -3049,9 +3053,13 @@ export default Plugin.define({
       },
       render: (props) => {
         const panel = usePanel();
-        const active = props.tab.id.startsWith("file:")
-          ? pathFromId(props.tab.id, props.session.directory)
-          : "";
+        // A memo, not a plain const: `render` runs once, so reading the props
+        // here directly would freeze the first tab's path into the component.
+        const active = createMemo(() =>
+          props.tab.id.startsWith("file:")
+            ? pathFromId(props.tab.id, props.session.directory)
+            : "",
+        );
         // Every path the panel already holds a tab or a draft for.
         const knownPaths = () => {
           const paths = new Set<string>(buffers.keys());
@@ -3115,7 +3123,7 @@ export default Plugin.define({
               ui={ctx.ui}
               panel={panel}
               file={props.screen.file}
-              active={active}
+              active={active()}
               open={openFile}
             >
               {props.tab.id === BROWSER ? (

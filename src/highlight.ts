@@ -202,13 +202,15 @@ export function tokenize(text: string, language: Language): Token[] {
   };
 
   while (index < text.length) {
-    const char = text[index];
+    // `charAt` returns "" past the end instead of undefined, which keeps the
+    // character predicates total under noUncheckedIndexedAccess.
+    const char = text.charAt(index);
 
     if (spec.line && text.startsWith(spec.line, index)) {
       // A "#" starts a comment only at a line start or after space, so a URL
       // fragment or an issue number in YAML stays text.
       const hashLike = spec.line === "#";
-      const before = index === 0 ? "" : text[index - 1];
+      const before = text.charAt(index - 1);
       if (!hashLike || before === "" || /\s/.test(before)) {
         const end = text.indexOf("\n", index);
         emit(end === -1 ? text.length : end, "comment");
@@ -235,7 +237,7 @@ export function tokenize(text: string, language: Language): Token[] {
       let cursor = index + open.length;
       let closed = false;
       while (cursor < text.length) {
-        if (!triple && spec.escapes && text[cursor] === "\\") {
+        if (!triple && spec.escapes && text.charAt(cursor) === "\\") {
           cursor += 2;
           continue;
         }
@@ -244,7 +246,7 @@ export function tokenize(text: string, language: Language): Token[] {
           closed = true;
           break;
         }
-        if (text[cursor] === "\n" && !multiline) break;
+        if (text.charAt(cursor) === "\n" && !multiline) break;
         cursor += 1;
       }
       if (!closed && !multiline) {
@@ -257,17 +259,17 @@ export function tokenize(text: string, language: Language): Token[] {
 
     if (isDigit(char)) {
       let cursor = index;
-      while (cursor < text.length && /[0-9_]/.test(text[cursor])) cursor += 1;
-      if (text[cursor] === "." && isDigit(text[cursor + 1] ?? "")) {
+      while (cursor < text.length && /[0-9_]/.test(text.charAt(cursor))) cursor += 1;
+      if (text.charAt(cursor) === "." && isDigit(text.charAt(cursor + 1))) {
         cursor += 1;
-        while (cursor < text.length && /[0-9_]/.test(text[cursor])) cursor += 1;
+        while (cursor < text.length && /[0-9_]/.test(text.charAt(cursor))) cursor += 1;
       }
-      if (/[eE]/.test(text[cursor] ?? "") ) {
+      if (/[eE]/.test(text.charAt(cursor))) {
         let exponent = cursor + 1;
-        if (/[+-]/.test(text[exponent] ?? "")) exponent += 1;
-        if (isDigit(text[exponent] ?? "")) {
+        if (/[+-]/.test(text.charAt(exponent))) exponent += 1;
+        if (isDigit(text.charAt(exponent))) {
           cursor = exponent;
-          while (cursor < text.length && isDigit(text[cursor])) cursor += 1;
+          while (cursor < text.length && isDigit(text.charAt(cursor))) cursor += 1;
         }
       }
       emit(cursor, "number");
@@ -276,7 +278,7 @@ export function tokenize(text: string, language: Language): Token[] {
 
     if (isWordStart(char)) {
       let cursor = index + 1;
-      while (cursor < text.length && isWord(text[cursor])) cursor += 1;
+      while (cursor < text.length && isWord(text.charAt(cursor))) cursor += 1;
       const word = text.slice(index, cursor);
       const probe = spec.fold ? word.toLowerCase() : word;
       // Literals first: `true` and `null` are words in most keyword lists too,

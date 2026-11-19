@@ -1,0 +1,63 @@
+name: Fuzz
+
+# `npm test` runs 200 cases per property, which is enough to catch a regression
+# in code we just changed. The input space is much larger than that, so a fresh
+# seed explores it nightly. A failure becomes an issue instead of a red run
+# nobody watches.
+on:
+  schedule:
+    - cron: "43 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FUZZ_RUNS: 5000
+      # Changes per scheduled run and stays stable across re-runs, so a reported
+      # failure can be reproduced exactly.
+      FUZZ_SEED: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:fuzz
+
+      - name: File an issue with the failing seed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Nightly fuzz found a counterexample (seed ${FUZZ_SEED})"
+          existing=$(gh issue list --state open \
+            --search "\"${title}\" in:title" --json number --jq 'length')
+          if [ "$existing" != "0" ]; then
+            echo "An issue for this seed is already open."
+            exit 0
+          fi
+          body=$(cat <<EOF
+          The nightly property run failed.
+
+          - Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Seed: \`${FUZZ_SEED}\`
+          - Cases per property: \`${FUZZ_RUNS}\`
+
+          Reproduce:
+
+          \`\`\`sh
+          FUZZ_RUNS=${FUZZ_RUNS} FUZZ_SEED=${FUZZ_SEED} npm run test:fuzz
+          \`\`\`
+
+          The run log holds the shrunk counterexample and the property name.
+          Paste both here before fixing, so the regression test can use that seed.
+          EOF
+          )
+          gh issue create --title "$title" --label bug --body "$body"

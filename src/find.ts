@@ -66,8 +66,8 @@ export function stepMatch(
   if (matches.length === 0) return undefined;
   if (backwards) {
     for (let i = matches.length - 1; i >= 0; i -= 1)
-      if (matches[i].start < position) return matches[i];
-    return matches[matches.length - 1];
+      if (matches[i]!.start < position) return matches[i]!;
+    return matches[matches.length - 1]!;
   }
   for (const match of matches) if (match.start >= position) return match;
   return matches[0];

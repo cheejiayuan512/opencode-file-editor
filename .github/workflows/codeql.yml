@@ -1,0 +1,33 @@
+name: CodeQL
+
+# Paths and file contents cross this plugin's Ipc bridge, so the taint and
+# injection queries are worth running on a schedule even though the plugin is
+# local-only. Findings land in the Security tab; nothing is published from here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "31 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  security-events: write
+  actions: read
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
