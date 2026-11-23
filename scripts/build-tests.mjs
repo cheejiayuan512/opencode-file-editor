@@ -19,6 +19,7 @@ const entries = [
   "view",
   "recent",
   "reveal",
+  "remote",
   "browse",
   "tree",
 ];
