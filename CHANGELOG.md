@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Fixed: a file in a remote workspace was reported as missing.** The panel
+  read and wrote through the desktop's main process, so a session served by WSL
+  or another machine looked for its files on the Windows disk and offered to
+  create a file that already existed. Reads, writes, listings and existence
+  checks now go to the session's own server unless it is the app's own server,
+  whose disk is this machine's. Revealing a remote file in the host's file
+  manager is not offered, because there is no local path to reveal.
 - **Fixed: the table cap was off by one.** A CSV/TSV with exactly as many rows
   as the cap claimed it had been truncated, and a final row without a trailing
   newline could slip past the cap entirely. The limit now counts data rows and

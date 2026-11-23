@@ -157,6 +157,19 @@ export async function isTextFile(path: string): Promise<boolean> {
 }
 
 /**
+ * The bytes for one buffer: the file's own line ending and BOM, so a save keeps
+ * the convention the file arrived with. Shared with the remote write path, which
+ * cannot use the atomic local one.
+ */
+export function encodeText(text: string, eol: string, bom: boolean) {
+  const body = eol === "crlf" ? text.replace(/\n/g, "\r\n") : text
+  const bytes = Buffer.from(body, "utf8")
+  return bom
+    ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes])
+    : bytes
+}
+
+/**
  * Writes through a temporary file in the same directory, so a crash or a full
  * disk leaves the original intact instead of a half-written file.
  *
@@ -191,13 +204,7 @@ export async function writeTextFile(
   }
 
   // Keep the file's own convention rather than rewriting every line ending.
-  const eol = existing?.eol ?? "lf"
-  const bom = existing?.bom ?? false
-  const body = eol === "crlf" ? text.replace(/\n/g, "\r\n") : text
-  const bytes = Buffer.from(body, "utf8")
-  const buffer = bom
-    ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes])
-    : bytes
+  const buffer = encodeText(text, existing?.eol ?? "lf", existing?.bom ?? false)
 
   let mode = 0o600
   try {

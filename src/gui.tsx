@@ -23,6 +23,7 @@ import {
   usePanel,
   type Files,
   type Dialogs,
+  type MountedSession,
   type PanelFrame,
   type PanelTab,
   type SessionRef,
@@ -31,7 +32,12 @@ import {
   type UiMenuEntry,
 } from "@opencode/plugin/gui";
 import {
+  MAX_BYTES,
+  FsError,
+  decodeText,
+  encodeText,
   isTextFile,
+  looksLikeText,
   readTextFile,
   resolvePath,
   samePath,
@@ -40,6 +46,7 @@ import {
   type WriteResult,
 } from "./fs-core";
 import { canonicalPath, relativeTo } from "./paths";
+import { usesLocalDisk } from "./remote";
 import {
   basenameOf,
   folderOf,
@@ -107,7 +114,30 @@ import { revealCommand } from "./reveal";
 
 // One source of truth for the build marker: `verify:live` and the diagnostics
 // action both report it.
-const GUI_VERSION = "gui v41";
+const GUI_VERSION = "gui v42";
+
+// The shapes both filesystem bridges return. One definition keeps the two
+// protocols in step: a field added for the local one exists on the remote one.
+const ReadOut = Schema.Struct({
+  text: Schema.String,
+  eol: Schema.String,
+  bom: Schema.Boolean,
+  mtimeMs: Schema.Number,
+  size: Schema.Number,
+});
+
+const WriteOut = Schema.Struct({
+  message: Schema.String,
+  mtimeMs: Schema.Number,
+  size: Schema.Number,
+});
+
+const ListingOut = Schema.Struct({
+  entries: Schema.Array(
+    Schema.Struct({ name: Schema.String, dir: Schema.Boolean }),
+  ),
+  total: Schema.Number,
+});
 
 // The window cannot touch the filesystem, so every read and write crosses IPC.
 // `write` takes the content the panel believes is on disk and refuses when it
@@ -119,13 +149,7 @@ const Fs = Ipc.define({
   methods: {
     read: {
       input: Schema.Struct({ path: Schema.String, base: Schema.String }),
-      output: Schema.Struct({
-        text: Schema.String,
-        eol: Schema.String,
-        bom: Schema.Boolean,
-        mtimeMs: Schema.Number,
-        size: Schema.Number,
-      }),
+      output: ReadOut,
     },
     write: {
       input: Schema.Struct({
@@ -134,11 +158,7 @@ const Fs = Ipc.define({
         text: Schema.String,
         expected: Schema.String,
       }),
-      output: Schema.Struct({
-        message: Schema.String,
-        mtimeMs: Schema.Number,
-        size: Schema.Number,
-      }),
+      output: WriteOut,
     },
     forceWrite: {
       input: Schema.Struct({
@@ -146,11 +166,7 @@ const Fs = Ipc.define({
         base: Schema.String,
         text: Schema.String,
       }),
-      output: Schema.Struct({
-        message: Schema.String,
-        mtimeMs: Schema.Number,
-        size: Schema.Number,
-      }),
+      output: WriteOut,
     },
     resolve: {
       input: Schema.Struct({ path: Schema.String, base: Schema.String }),
@@ -162,12 +178,7 @@ const Fs = Ipc.define({
     },
     list: {
       input: Schema.Struct({ path: Schema.String, base: Schema.String }),
-      output: Schema.Struct({
-        entries: Schema.Array(
-          Schema.Struct({ name: Schema.String, dir: Schema.Boolean }),
-        ),
-        total: Schema.Number,
-      }),
+      output: ListingOut,
     },
     exists: {
       input: Schema.Struct({ path: Schema.String, base: Schema.String }),
@@ -183,6 +194,77 @@ const Fs = Ipc.define({
     },
   },
 });
+
+// The desktop's `main` process sees the Windows disk. A session whose server is
+// WSL or another machine does not live there, which is how a file that exists
+// came to be reported missing (issue #10). These methods run in main because the
+// window's origin is not the server, and its CORS answer is not ours to rely on.
+const RemoteTarget = Schema.Struct({
+  url: Schema.String,
+  password: Schema.optional(Schema.String),
+  directory: Schema.String,
+  path: Schema.String,
+});
+
+const RemoteFs = Ipc.define({
+  // Bumped when methods are added, for the same reason as `Fs`.
+  id: "file-editor.remote-fs.v1",
+  methods: {
+    read: { input: RemoteTarget, output: ReadOut },
+    write: {
+      input: Schema.Struct({
+        url: Schema.String,
+        password: Schema.optional(Schema.String),
+        directory: Schema.String,
+        path: Schema.String,
+        text: Schema.String,
+        expected: Schema.String,
+      }),
+      output: WriteOut,
+    },
+    forceWrite: {
+      input: Schema.Struct({
+        url: Schema.String,
+        password: Schema.optional(Schema.String),
+        directory: Schema.String,
+        path: Schema.String,
+        text: Schema.String,
+      }),
+      output: WriteOut,
+    },
+    list: { input: RemoteTarget, output: ListingOut },
+    exists: { input: RemoteTarget, output: Schema.Boolean },
+    isText: { input: RemoteTarget, output: Schema.Boolean },
+  },
+});
+
+type RemoteTargetInput = {
+  url: string;
+  password?: string;
+  directory: string;
+  path: string;
+};
+
+type RemoteClient = {
+  read(input: RemoteTargetInput): Promise<ReadResult>;
+  write(
+    input: RemoteTargetInput & {
+      text: string;
+      expected: string;
+    },
+  ): Promise<WriteResult>;
+  forceWrite(
+    input: RemoteTargetInput & {
+      text: string;
+    },
+  ): Promise<WriteResult>;
+  list(input: RemoteTargetInput): Promise<{
+    entries: readonly Entry[];
+    total: number;
+  }>;
+  exists(input: RemoteTargetInput): Promise<boolean>;
+  isText(input: RemoteTargetInput): Promise<boolean>;
+};
 
 type FsClient = {
   read(input: { path: string; base: string }): Promise<ReadResult>;
@@ -207,6 +289,54 @@ type FsClient = {
   isText(input: { path: string; base: string }): Promise<boolean>;
   sameFile(input: { a: string; b: string }): Promise<boolean>;
 };
+
+/**
+ * The same panel interface over a session server's filesystem API instead of the
+ * desktop's disk. Paths are absolute by the time they reach the server: the tab
+ * keys, the recent list and `relativeTo` all assume that form.
+ */
+function remoteFsFor(remote: RemoteClient, session: MountedSession): FsClient {
+  const target = () => {
+    const { url, password } = session.server;
+    return password
+      ? { url, password, directory: session.directory }
+      : { url, directory: session.directory };
+  };
+  const absolute = (path: string, base: string) =>
+    canonicalPath(path, base || session.directory);
+
+  return {
+    read: ({ path, base }) =>
+      remote.read({ ...target(), path: absolute(path, base) }),
+    write: ({ path, base, text, expected }) =>
+      remote.write({
+        ...target(),
+        path: absolute(path, base),
+        text,
+        expected,
+      }),
+    forceWrite: ({ path, base, text }) =>
+      remote.forceWrite({
+        ...target(),
+        path: absolute(path, base),
+        text,
+      }),
+    resolve: async ({ path, base }) => absolute(path, base),
+    // There is no host file manager for a remote workspace; declining leaves the
+    // action out instead of opening Explorer on a path it cannot see.
+    reveal: async () => false,
+    list: ({ path, base }) =>
+      remote.list({ ...target(), path: absolute(path, base) }),
+    exists: ({ path, base }) =>
+      remote.exists({ ...target(), path: absolute(path, base) }),
+    isText: ({ path, base }) =>
+      remote.isText({ ...target(), path: absolute(path, base) }),
+    // Inode identity is not on offer over HTTP, so compare the canonical form.
+    // A case-insensitive remote volume can still answer "different" for one file.
+    sameFile: async ({ a, b }) =>
+      a === b || canonicalPath(a, "") === canonicalPath(b, ""),
+  };
+}
 
 // One buffer per path, so switching tabs does not throw away unsaved text.
 // The host owns which tabs exist and their order; this only caches their state.
@@ -2993,7 +3123,30 @@ export default Plugin.define({
   },
   setup(ctx) {
     console.log(`[file-editor] ${GUI_VERSION}`);
-    const fs = ctx.main(Fs);
+    const local = ctx.main(Fs);
+    const remote = ctx.main(RemoteFs);
+
+    // `sidecar` is the app's own server, the one whose disk is this machine's.
+    // A session on any other server — a WSL distro, a remote host — needs that
+    // server's filesystem, or every path looks missing.
+    const fsFor = (session: MountedSession): FsClient =>
+      usesLocalDisk(session.server, ctx.servers.get("sidecar")?.url)
+        ? local
+        : remoteFsFor(remote, session);
+
+    // A panel stays mounted while the routed session changes, so resolve the
+    // session on every call rather than capturing the one it rendered with.
+    const scoped = (get: () => MountedSession): FsClient => ({
+      read: (input) => fsFor(get()).read(input),
+      write: (input) => fsFor(get()).write(input),
+      forceWrite: (input) => fsFor(get()).forceWrite(input),
+      resolve: (input) => fsFor(get()).resolve(input),
+      reveal: (input) => fsFor(get()).reveal(input),
+      list: (input) => fsFor(get()).list(input),
+      exists: (input) => fsFor(get()).exists(input),
+      isText: (input) => fsFor(get()).isText(input),
+      sameFile: (input) => fsFor(get()).sameFile(input),
+    });
 
     ctx.add(Panel, {
       id: "editor",
@@ -3053,6 +3206,10 @@ export default Plugin.define({
       },
       render: (props) => {
         const panel = usePanel();
+        // Resolve the session per call: the panel stays mounted when the user
+        // switches sessions, and each server has its own filesystem.
+        /* eslint-disable-next-line solid/reactivity -- the getter is called by a later event handler, not here */
+        const panelFs = scoped(() => props.session);
         // A memo, not a plain const: `render` runs once, so reading the props
         // here directly would freeze the first tab's path into the component.
         const active = createMemo(() =>
@@ -3080,7 +3237,7 @@ export default Plugin.define({
             let key = absolute;
             for (const known of knownPaths()) {
               if (known === absolute) continue;
-              if (await fs.sameFile({ a: known, b: absolute })) {
+              if (await panelFs.sameFile({ a: known, b: absolute })) {
                 key = known;
                 break;
               }
@@ -3128,7 +3285,7 @@ export default Plugin.define({
             >
               {props.tab.id === BROWSER ? (
                 <Browser
-                  fs={fs}
+                  fs={panelFs}
                   ui={ctx.ui}
                   dialogs={ctx.dialogs}
                   start={() => browsePath() || props.session.directory}
@@ -3136,7 +3293,7 @@ export default Plugin.define({
                 />
               ) : (
                 <Editor
-                  fs={fs}
+                  fs={panelFs}
                   base={() => props.session.directory}
                   path={pathFromId(props.tab.id, props.session.directory)}
                   open={openFile}
@@ -3264,10 +3421,12 @@ export default Plugin.define({
       priority: 1000,
       match: (link) => isFileLink(link) && isTextPath(link.href),
       exists: async (link) => {
+        const session = ctx.sessions.current();
+        if (!session) return true;
         try {
-          return await fs.exists({
+          return await fsFor(session).exists({
             path: hrefPath(link.href),
-            base: linkBase(link, ctx.sessions.current()?.directory ?? ""),
+            base: linkBase(link, session.directory),
           });
         } catch {
           // An older main process may not provide `exists`; still offer the link.
@@ -3356,6 +3515,184 @@ export default Plugin.define({
       isText: async ({ path, base }) =>
         io("isText", () => isTextFile(resolvePath(path, base))),
       sameFile: async ({ a, b }) => io("sameFile", () => samePath(a, b)),
+    });
+
+    // The session server's filesystem API: `fs.read` streams one file relative to
+    // the location, and only `experimental.fs.write` accepts an absolute path.
+    // Absolute paths are what the window sends, so reads are encoded as one
+    // segment; the server then resolves the leading slash itself.
+    const origin = (url: string) => url.replace(/\/+$/, "");
+    const auth = (password?: string): Record<string, string> =>
+      password
+        ? {
+            authorization: `Basic ${Buffer.from(
+              `opencode:${password}`,
+              "utf8",
+            ).toString("base64")}`,
+          }
+        : {};
+    const location = (directory: string) =>
+      `location[directory]=${encodeURIComponent(directory)}`;
+    const readUrl = (url: string, path: string, directory: string) =>
+      `${origin(url)}/api/fs/read/${encodeURIComponent(path)}?${location(directory)}`;
+    const describe = async (response: Response) => {
+      const body = await response.text().catch(() => "");
+      return `HTTP ${response.status}${body ? ` ${body.slice(0, 200)}` : ""}`;
+    };
+
+    const readRemote = async ({
+      url,
+      password,
+      directory,
+      path,
+    }: RemoteTargetInput): Promise<ReadResult> => {
+      const response = await fetch(readUrl(url, path, directory), {
+        headers: auth(password),
+      });
+      if (response.status === 404)
+        throw new Error(`ENOENT: ${path} is not on the session server`);
+      if (!response.ok)
+        throw new Error(`Remote read failed: ${await describe(response)}`);
+
+      const length = Number(response.headers.get("content-length") ?? "0");
+      if (length > MAX_BYTES) throw new FsError("TOO_LARGE");
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length > MAX_BYTES) throw new FsError("TOO_LARGE");
+
+      const decoded = decodeText(bytes);
+      const modified = Date.parse(response.headers.get("last-modified") ?? "");
+      return {
+        text: decoded.text,
+        eol: decoded.eol,
+        bom: decoded.bom,
+        mtimeMs: Number.isFinite(modified) ? modified : Date.now(),
+        size: bytes.length,
+      };
+    };
+
+    const writeRemote = async ({
+      url,
+      password,
+      directory,
+      path,
+      text,
+      expected,
+    }: RemoteTargetInput & {
+      text: string;
+      expected: string | null;
+    }): Promise<WriteResult> => {
+      // The remote write has no atomic replace, so the conflict guard is the
+      // comparison the local one makes, minus the rename it cannot do.
+      let existing: ReadResult | undefined;
+      try {
+        existing = await readRemote({ url, password, directory, path });
+      } catch (error) {
+        if (error instanceof FsError) {
+          if (error.code !== "TOO_LARGE") throw error;
+        } else if (String(error).includes("ENOENT")) {
+          if (expected !== null) throw new FsError("EXTERNAL_CHANGE");
+        } else {
+          throw error;
+        }
+      }
+
+      if (expected !== null && existing && existing.text !== expected)
+        throw new FsError("EXTERNAL_CHANGE");
+
+      const body = encodeText(text, existing?.eol ?? "lf", existing?.bom ?? false);
+      if (body.length > MAX_BYTES) throw new FsError("TOO_LARGE");
+
+      const response = await fetch(
+        `${origin(url)}/api/experimental/fs/write?path=${encodeURIComponent(
+          path,
+        )}&${location(directory)}`,
+        {
+          method: "POST",
+          headers: {
+            ...auth(password),
+            "content-type": "application/octet-stream",
+          },
+          body,
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Remote write failed: ${await describe(response)}`);
+
+      const after = await readRemote({
+        url,
+        password,
+        directory,
+        path,
+      }).catch(() => undefined);
+      return {
+        message: `Saved ${path}`,
+        mtimeMs: after?.mtimeMs ?? Date.now(),
+        size: after?.size ?? body.length,
+      };
+    };
+
+    const listRemote = async ({
+      url,
+      password,
+      directory,
+      path,
+    }: RemoteTargetInput) => {
+      const response = await fetch(
+        `${origin(url)}/api/fs/list?path=${encodeURIComponent(
+          path,
+        )}&${location(directory)}`,
+        { headers: auth(password) },
+      );
+      if (!response.ok)
+        throw new Error(`Remote list failed: ${await describe(response)}`);
+
+      const body = (await response.json()) as {
+        data?: Array<{ path: string; type: "file" | "directory" }>;
+      };
+      const entries = (body.data ?? []).map((entry) => ({
+        // The server lists relative to the location, so the name is the last
+        // segment; folders carry a trailing slash.
+        name: entry.path.replace(/\/+$/, "").split("/").pop() ?? entry.path,
+        dir: entry.type === "directory",
+      }));
+      return limitEntries(sortEntries(entries));
+    };
+
+    const existsRemote = async (input: RemoteTargetInput) => {
+      const response = await fetch(
+        readUrl(input.url, input.path, input.directory),
+        { method: "HEAD", headers: auth(input.password) },
+      );
+      if (response.status === 404) return false;
+      if (!response.ok)
+        throw new Error(`Remote stat failed: ${await describe(response)}`);
+      return true;
+    };
+
+    const isTextRemote = async ({
+      url,
+      password,
+      directory,
+      path,
+    }: RemoteTargetInput) => {
+      const response = await fetch(readUrl(url, path, directory), {
+        headers: { ...auth(password), range: "bytes=0-8191" },
+      });
+      if (!response.ok) return false;
+      const bytes = Buffer.from(await response.arrayBuffer());
+      return looksLikeText(bytes);
+    };
+
+    ctx.provide(RemoteFs, {
+      read: (input) => io("remote.read", () => readRemote(input)),
+      write: (input) => io("remote.write", () => writeRemote(input)),
+      forceWrite: (input) =>
+        io("remote.forceWrite", () =>
+          writeRemote({ ...input, expected: null }),
+        ),
+      list: (input) => io("remote.list", () => listRemote(input)),
+      exists: (input) => io("remote.exists", () => existsRemote(input)),
+      isText: (input) => io("remote.isText", () => isTextRemote(input)),
     });
   },
 });
